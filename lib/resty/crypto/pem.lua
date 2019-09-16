@@ -1,6 +1,5 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
-local RSA = require "resty.crypto.rsa"
 local X509 = require "resty.crypto.x509"
 local BIO = require "resty.crypto.bio"
 local ERR = require "resty.crypto.error"
@@ -13,6 +12,8 @@ local C = ffi.C
 local _M = { _VERSION = '0.0.1' }
 
 ffi.cdef [[
+typedef struct rsa_st RSA;
+void RSA_free(RSA *rsa);
 typedef int pem_password_cb(char *buf, int size, int rwflag, void *userdata);
 
 RSA * PEM_read_bio_RSAPrivateKey(BIO *bp, RSA **rsa, pem_password_cb *cb, void *u);
@@ -42,7 +43,7 @@ local function PEM_read_RSA_Key(read_function, key, pass)
     if rsa == ffi_null then
         return nil, ERR.get_error()
     end
-    ffi_gc(rsa, RSA.free)
+    ffi_gc(rsa, C.RSA_free)
 
     return rsa
 end

@@ -4,13 +4,14 @@
 
 local EVP = require "resty.crypto.evp"
 local PEM = require "resty.crypto.pem"
-local RSA = require "resty.crypto.rsa"
+local BN = require "resty.crypto.bn"
 local ERR = require "resty.crypto.error"
 
 local ffi = require "ffi"
 local ffi_new = ffi.new
 local ffi_copy = ffi.copy
 local ffi_str = ffi.string
+local ffi_gc = ffi.gc
 local C = ffi.C
 local setmetatable = setmetatable
 
@@ -33,6 +34,11 @@ local KEY_TYPE = {
 _M.KEY_TYPE = KEY_TYPE
 
 ffi.cdef[[
+typedef struct rsa_st RSA;
+RSA *RSA_new(void);
+void RSA_free(RSA *rsa);
+int RSA_generate_key_ex(RSA *rsa, int bits, BIGNUM *e, BN_GENCB *cb);
+
 int EVP_PKEY_encrypt_init(EVP_PKEY_CTX *ctx);
 int EVP_PKEY_encrypt(EVP_PKEY_CTX *ctx,
         unsigned char *out, size_t *outlen,
@@ -56,6 +62,16 @@ local EVP_PKEY_ALG_CTRL = 0x1000
 local EVP_PKEY_CTRL_RSA_PADDING = EVP_PKEY_ALG_CTRL + 1
 local NID_rsaEncryption = 6
 local EVP_PKEY_RSA = NID_rsaEncryption
+
+local function RSA_free(rsa)
+    ffi_gc(rsa, C.RSA_free)
+end
+
+local function RSA_new()
+    local rsa = C.RSA_new()
+    RSA_free(rsa)
+    return rsa
+end
 
 function _M.new(_, opts)
     local key, read_func, is_pub, md
@@ -138,11 +154,11 @@ function _M.new(_, opts)
 end
 
 function _M.generate_key(bits, pkcs8)
-    local rsa = RSA.new()
-    local bn = RSA.BN_new()
+    local rsa = RSA_new()
+    local bn = BN.new()
 
     -- Set public exponent to 65537
-    if C.BN_set_word(bn, 65537) ~= 1 then
+    if BN.set_word(bn, 65537) ~= 1 then
         return nil, ERR.get_error()
     end
 
