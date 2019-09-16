@@ -8,14 +8,16 @@ local bxor = bit.bxor
 local bnot = bit.bnot
 local lshift = bit.lshift
 local rshift = bit.rshift
-local tohex = bit.tohex
 local ffi_new = ffi.new
 local ffi_cast = ffi.cast
-local tab_concat = table.concat
+local ffi_str = ffi.string
 local setmetatable = setmetatable
 
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
+
+local digest_len = 32
+local buf = ffi_new("char[?]", digest_len)
 
 local ok, new_tab = pcall(require, "table.new")
 if not ok then
@@ -245,7 +247,7 @@ local function SM3_Final(ctx, digest)
     end
 
     for i = 1, 8, 1 do
-        digest[i] = tohex(ctx.iv[i])
+        put32(ctx.iv[i], digest, 4 * (i - 1))
     end
 
     return 1
@@ -263,11 +265,11 @@ function _M.update(self, s)
 end
 
 function _M.final(self)
-    local digest = new_tab(8, 0)
-
-    if SM3_Final(self._ctx, digest) == 1 then
-        return tab_concat(digest)
+    if SM3_Final(self._ctx, buf) == 1 then
+        return ffi_str(buf, digest_len)
     end
+
+    return nil
 end
 
 function _M.reset(self)

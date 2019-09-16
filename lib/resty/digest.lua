@@ -26,6 +26,25 @@ local str_type = ffi.typeof("uint8_t[?]")
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
 
+local function tohex(s)
+    if not s then
+        return nil
+    end
+
+    local len = #s
+    local buf_len = len * 2
+    local buf = ffi_new(str_type, buf_len)
+    C.ngx_hex_dump(buf, s, len)
+    return ffi_str(buf, buf_len)
+end
+
+function mt.__call(self, s)
+    local dg = self.dg
+    if dg:update(s) == 1 then
+        return tohex(dg:final())
+    end
+end
+
 function _M.new(algorithm)
     local dg = digest[algorithm]
     if not dg then
@@ -48,11 +67,7 @@ function _M.reset(self)
 end
 
 function _M.to_hex(s)
-    local len = #s
-    local buf_len = len * 2
-    local buf = ffi_new(str_type, buf_len)
-    C.ngx_hex_dump(buf, s, len)
-    return ffi_str(buf, buf_len)
+    return tohex(s)
 end
 
 return _M

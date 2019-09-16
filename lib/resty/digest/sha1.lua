@@ -31,7 +31,6 @@ int SHA1_Final(unsigned char *md, SHA_CTX *c);
 ]]
 
 local digest_len = 20
-
 local buf = ffi_new("char[?]", digest_len)
 local ctx_ptr_type = ffi.typeof("SHA_CTX[1]")
 

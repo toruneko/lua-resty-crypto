@@ -35,7 +35,8 @@ int MD5_Update(MD5_CTX *c, const void *data, size_t len);
 int MD5_Final(unsigned char *md, MD5_CTX *c);
 ]]
 
-local buf = ffi_new("char[16]")
+local digest_len = 16
+local buf = ffi_new("char[?]", digest_len)
 local ctx_ptr_type = ffi.typeof("MD5_CTX[1]")
 
 
@@ -56,7 +57,7 @@ end
 
 function _M.final(self)
     if C.MD5_Final(buf, self._ctx) == 1 then
-        return ffi_str(buf, 16)
+        return ffi_str(buf, digest_len)
     end
 
     return nil

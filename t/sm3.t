@@ -26,7 +26,7 @@ __DATA__
             local resty_digest = require "resty.digest"
             local sm3 = resty_digest.new("sm3")
             sm3:update("abc")
-            ngx.say(sm3:final())
+            ngx.say(sm3.to_hex(sm3:final()))
         }
     }
 --- request
@@ -47,7 +47,27 @@ GET /t
             local resty_digest = require "resty.digest"
             local sm3 = resty_digest.new("sm3")
             sm3:update("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd")
-            ngx.say(sm3:final())
+            ngx.say(sm3.to_hex(sm3:final()))
+        }
+    }
+--- request
+GET /t
+--- response_body
+debe9ff92275b8a138604889c18e5a4d6fdb70e5387e5765293dcba39c0c5732
+--- error_code: 200
+--- no_error_log
+[error]
+
+
+
+=== TEST 3: SM3 function
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local resty_digest = require "resty.digest"
+            local sm3 = resty_digest.new("sm3")
+            ngx.say(sm3("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd"))
         }
     }
 --- request

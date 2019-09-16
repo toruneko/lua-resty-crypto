@@ -23,7 +23,6 @@ int SHA384_Final(unsigned char *md, SHA512_CTX *c);
 ]]
 
 local digest_len = 48
-
 local buf = ffi_new("char[?]", digest_len)
 local ctx_ptr_type = ffi.typeof("SHA512_CTX[1]")
 
