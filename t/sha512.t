@@ -27,7 +27,7 @@ __DATA__
             local sha512 = resty_digest.new("sha512")
             ngx.say(sha512:update("hello"))
             local digest = sha512:final()
-            ngx.say("sha512: ", sha512.to_hex(digest))
+            ngx.say("sha512: ", sha512.tohex(digest))
         ';
     }
 --- request
@@ -50,7 +50,7 @@ sha512: 9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d9
             ngx.say(sha512:update("hel"))
             ngx.say(sha512:update("lo"))
             local digest = sha512:final()
-            ngx.say("sha512: ", sha512.to_hex(digest))
+            ngx.say("sha512: ", sha512.tohex(digest))
         ';
     }
 --- request
@@ -73,7 +73,7 @@ sha512: 9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d9
             local sha512 = resty_digest.new("sha512")
             ngx.say(sha512:update(""))
             local digest = sha512:final()
-            ngx.say("sha512: ", sha512.to_hex(digest))
+            ngx.say("sha512: ", sha512.tohex(digest))
         ';
     }
 --- request

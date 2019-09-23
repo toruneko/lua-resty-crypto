@@ -1,5 +1,7 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
+local str = require "resty.utils.string"
+
 local ffi = require "ffi"
 local ffi_new = ffi.new
 local ffi_str = ffi.string
@@ -16,58 +18,42 @@ local digest = {
     sha512 = require "resty.digest.sha512",
 }
 
-ffi.cdef[[
-typedef unsigned char u_char;
-u_char * ngx_hex_dump(u_char *dst, const u_char *src, size_t len);
-]]
-
-local str_type = ffi.typeof("uint8_t[?]")
-
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
 
-local function tohex(s)
-    if not s then
+function mt.__call(self, s)
+    local hash = self.hash
+    if not hash:reset() then
         return nil
     end
-
-    local len = #s
-    local buf_len = len * 2
-    local buf = ffi_new(str_type, buf_len)
-    C.ngx_hex_dump(buf, s, len)
-    return ffi_str(buf, buf_len)
-end
-
-function mt.__call(self, s)
-    local dg = self.dg
-    if dg:update(s) == 1 then
-        return tohex(dg:final())
+    if hash:update(s) == 1 then
+        return str.tohex(hash:final())
     end
 end
 
 function _M.new(algorithm)
-    local dg = digest[algorithm]
-    if not dg then
+    local hash = digest[algorithm]
+    if not hash then
         return nil, "digest algorithm not found"
     end
 
-    return setmetatable({dg = dg.new()}, mt)
+    return setmetatable({hash = hash.new()}, mt)
 end
 
 function _M.update(self, s)
-    return self.dg:update(s)
+    return self.hash:update(s)
 end
 
 function _M.final(self)
-    return self.dg:final()
+    return self.hash:final()
 end
 
 function _M.reset(self)
-    return self.dg:reset()
+    return self.hash:reset()
 end
 
-function _M.to_hex(s)
-    return tohex(s)
+function _M.tohex(s)
+    return str.tohex(s)
 end
 
 return _M

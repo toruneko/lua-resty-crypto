@@ -26,7 +26,7 @@ __DATA__
             local resty_digest = require "resty.digest"
             local sm3 = resty_digest.new("sm3")
             sm3:update("abc")
-            ngx.say(sm3.to_hex(sm3:final()))
+            ngx.say(sm3.tohex(sm3:final()))
         }
     }
 --- request
@@ -47,7 +47,7 @@ GET /t
             local resty_digest = require "resty.digest"
             local sm3 = resty_digest.new("sm3")
             sm3:update("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd")
-            ngx.say(sm3.to_hex(sm3:final()))
+            ngx.say(sm3.tohex(sm3:final()))
         }
     }
 --- request

@@ -3,6 +3,7 @@
 
 local EVP = require "resty.crypto.evp"
 local ERR = require "resty.crypto.error"
+local str = require "resty.utils.string"
 
 local ffi = require "ffi"
 local ffi_new = ffi.new
@@ -47,8 +48,6 @@ int EVP_BytesToKey(const EVP_CIPHER *type,const EVP_MD *md,
 typedef unsigned char u_char;
 u_char * ngx_hex_dump(u_char *dst, const u_char *src, size_t len);
 ]]
-
-local str_type = ffi.typeof("uint8_t[?]")
 
 local hash
 hash = {
@@ -178,12 +177,8 @@ function _M.decrypt(self, s)
     return ffi_str(buf, out_len[0] + tmp_len[0])
 end
 
-function _M.to_hex(s)
-    local len = #s
-    local buf_len = len * 2
-    local buf = ffi_new(str_type, buf_len)
-    C.ngx_hex_dump(buf, s, len)
-    return ffi_str(buf, buf_len)
+function _M.tohex(s)
+    return str.tohex(s)
 end
 
 return _M

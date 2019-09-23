@@ -27,7 +27,7 @@ __DATA__
             local sha384 = resty_digest.new("sha384")
             ngx.say(sha384:update("hello"))
             local digest = sha384:final()
-            ngx.say("sha384: ", sha384.to_hex(digest))
+            ngx.say("sha384: ", sha384.tohex(digest))
         ';
     }
 --- request
@@ -50,7 +50,7 @@ sha384: 59e1748777448c69de6b800d7a33bbfb9ff1b463e44354c3553bcdb9c666fa90125a3c79
             ngx.say(sha384:update("hel"))
             ngx.say(sha384:update("lo"))
             local digest = sha384:final()
-            ngx.say("sha384: ", sha384.to_hex(digest))
+            ngx.say("sha384: ", sha384.tohex(digest))
         ';
     }
 --- request
@@ -73,7 +73,7 @@ sha384: 59e1748777448c69de6b800d7a33bbfb9ff1b463e44354c3553bcdb9c666fa90125a3c79
             local sha384 = resty_digest.new("sha384")
             ngx.say(sha384:update(""))
             local digest = sha384:final()
-            ngx.say("sha384: ", sha384.to_hex(digest))
+            ngx.say("sha384: ", sha384.tohex(digest))
         ';
     }
 --- request

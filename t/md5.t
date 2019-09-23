@@ -27,7 +27,7 @@ __DATA__
             ngx.say(md5:update("hello"))
             local digest = md5:final()
             ngx.say(digest == ngx.md5_bin("hello"))
-            ngx.say("md5: ", md5.to_hex(digest))
+            ngx.say("md5: ", md5.tohex(digest))
         ';
     }
 --- request
@@ -51,7 +51,7 @@ md5: 5d41402abc4b2a76b9719d911017c592
             ngx.say(md5:update("hel"))
             ngx.say(md5:update("lo"))
             local digest = md5:final()
-            ngx.say("md5: ", md5.to_hex(digest))
+            ngx.say("md5: ", md5.tohex(digest))
         ';
     }
 --- request
@@ -75,7 +75,7 @@ md5: 5d41402abc4b2a76b9719d911017c592
             ngx.say(md5:update(""))
             local digest = md5:final()
             ngx.say(digest == ngx.md5_bin(""))
-            ngx.say("md5: ", md5.to_hex(digest))
+            ngx.say("md5: ", md5.tohex(digest))
         ';
     }
 --- request

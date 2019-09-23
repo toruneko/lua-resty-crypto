@@ -28,7 +28,7 @@ __DATA__
             ngx.say(sha1:update("hello"))
             local digest = sha1:final()
             ngx.say(digest == ngx.sha1_bin("hello"))
-            ngx.say("sha1: ", sha1.to_hex(digest))
+            ngx.say("sha1: ", sha1.tohex(digest))
         ';
     }
 --- request
@@ -52,7 +52,7 @@ sha1: aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
             ngx.say(sha1:update("hel"))
             ngx.say(sha1:update("lo"))
             local digest = sha1:final()
-            ngx.say("sha1: ", sha1.to_hex(digest))
+            ngx.say("sha1: ", sha1.tohex(digest))
         ';
     }
 --- request
@@ -76,7 +76,7 @@ sha1: aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
             ngx.say(sha1:update(""))
             local digest = sha1:final()
             ngx.say(digest == ngx.sha1_bin(""))
-            ngx.say("sha1: ", sha1.to_hex(digest))
+            ngx.say("sha1: ", sha1.tohex(digest))
         ';
     }
 --- request

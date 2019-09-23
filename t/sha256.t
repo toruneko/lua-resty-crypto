@@ -27,7 +27,7 @@ __DATA__
             local sha256 = resty_digest.new("sha256")
             ngx.say(sha256:update("hello"))
             local digest = sha256:final()
-            ngx.say("sha256: ", sha256.to_hex(digest))
+            ngx.say("sha256: ", sha256.tohex(digest))
         ';
     }
 --- request
@@ -50,7 +50,7 @@ sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
             ngx.say(sha256:update("hel"))
             ngx.say(sha256:update("lo"))
             local digest = sha256:final()
-            ngx.say("sha256: ", sha256.to_hex(digest))
+            ngx.say("sha256: ", sha256.tohex(digest))
         ';
     }
 --- request
@@ -73,7 +73,7 @@ sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
             local sha256 = resty_digest.new("sha256")
             ngx.say(sha256:update(""))
             local digest = sha256:final()
-            ngx.say("sha256: ", sha256.to_hex(digest))
+            ngx.say("sha256: ", sha256.tohex(digest))
         ';
     }
 --- request
