@@ -1,11 +1,6 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
 local str = require "resty.utils.string"
-
-local ffi = require "ffi"
-local ffi_new = ffi.new
-local ffi_str = ffi.string
-local C = ffi.C
 local setmetatable = setmetatable
 
 local digest = {
@@ -26,7 +21,7 @@ function mt.__call(self, s)
     if not hash:reset() then
         return nil
     end
-    if hash:update(s) == 1 then
+    if hash:update(s) then
         return str.tohex(hash:final())
     end
 end
@@ -37,7 +32,7 @@ function _M.new(algorithm)
         return nil, "digest algorithm not found"
     end
 
-    return setmetatable({hash = hash.new()}, mt)
+    return setmetatable({ hash = hash.new() }, mt)
 end
 
 function _M.update(self, s)

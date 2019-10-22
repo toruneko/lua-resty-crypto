@@ -261,7 +261,7 @@ function _M.new(self)
 end
 
 function _M.update(self, s)
-    return SM3_Update(self._ctx, ffi_cast("unsigned char*", s), #s)
+    return SM3_Update(self._ctx, ffi_cast("unsigned char*", s), #s) == 1
 end
 
 function _M.final(self)
@@ -274,6 +274,7 @@ end
 
 function _M.reset(self)
     SM3_Init(self._ctx)
+    return true
 end
 
 return _M

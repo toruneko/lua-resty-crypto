@@ -12,60 +12,58 @@ local rshift = bit.rshift
 local ffi_new = ffi.new
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
-local ffi_copy = ffi.copy
 local ffi_null = ffi.null
 local C = ffi.C
 local tonumber = tonumber
 local setmetatable = setmetatable
 
-local _M = { _VERSION = '0.0.1' }
+local _M = { _VERSION = '0.0.2' }
 local mt = { __index = _M }
 
-local EVP_CIPHER_CTX_FLAG_WRAP_ALLOW = 0x1
-local EVP_CIPH_WRAP_MODE = 0x10002
-local EVP_CIPH_CUSTOM_IV = 0x10
-local EVP_CIPH_FLAG_CUSTOM_CIPHER = 0x100000
-local EVP_CIPH_ALWAYS_CALL_INIT = 0x20
-local EVP_CIPH_CTRL_INIT = 0x40
-local EVP_CIPH_FLAG_DEFAULT_ASN1 = 0x1000
-local SMS4_WRAP_FLAGS = bor(EVP_CIPH_WRAP_MODE, EVP_CIPH_CTRL_INIT,
-    EVP_CIPH_CUSTOM_IV, EVP_CIPH_FLAG_CUSTOM_CIPHER,
-    EVP_CIPH_ALWAYS_CALL_INIT, EVP_CIPH_FLAG_DEFAULT_ASN1)
+local EVP_MAXCHUNK = lshift(1, (64 * 8 - 2))
 
 ffi.cdef [[
-typedef struct {
-	uint32_t rk[32];
-} sms4_key_t;
+typedef struct SM4_KEY_st {
+    uint32_t rk[32];
+} SM4_KEY;
 
 typedef struct {
-    union {
-        double align;
-        sms4_key_t ks;
-    } ks;
-    /* Indicates if IV has been set */
-    unsigned char *iv;
-} EVP_SMS4_WRAP_CTX;
+    SM4_KEY ks;
+} EVP_SM4_KEY;
 
 typedef void (*block128_f) (const unsigned char in[16],
                             unsigned char out[16], const void *key);
 
-void EVP_CIPHER_CTX_set_flags(EVP_CIPHER_CTX *ctx, int flags);
+const EVP_CIPHER *EVP_CIPHER_CTX_cipher(const EVP_CIPHER_CTX *ctx);
 void *EVP_CIPHER_CTX_get_cipher_data(const EVP_CIPHER_CTX *ctx);
-int EVP_CIPHER_CTX_encrypting(const EVP_CIPHER_CTX *ctx);
 unsigned char *EVP_CIPHER_CTX_iv_noconst(EVP_CIPHER_CTX *ctx);
-int EVP_CIPHER_CTX_iv_length(const EVP_CIPHER_CTX *ctx);
-size_t CRYPTO_128_wrap_pad(void *key, const unsigned char *icv,
-                           unsigned char *out, const unsigned char *in,
-                           size_t inlen, block128_f block);
-size_t CRYPTO_128_unwrap_pad(void *key, const unsigned char *icv,
-                             unsigned char *out, const unsigned char *in,
-                             size_t inlen, block128_f block);
-size_t CRYPTO_128_wrap(void *key, const unsigned char *icv,
-                       unsigned char *out, const unsigned char *in,
-                       size_t inlen, block128_f block);
-size_t CRYPTO_128_unwrap(void *key, const unsigned char *icv,
-                         unsigned char *out, const unsigned char *in,
-                         size_t inlen, block128_f block);
+unsigned char *EVP_CIPHER_CTX_buf_noconst(EVP_CIPHER_CTX *ctx);
+int EVP_CIPHER_CTX_encrypting(const EVP_CIPHER_CTX *ctx);
+int EVP_CIPHER_CTX_num(const EVP_CIPHER_CTX *ctx);
+int EVP_CIPHER_CTX_set_num(EVP_CIPHER_CTX *ctx, int num);
+
+void CRYPTO_cbc128_encrypt(const unsigned char *in, unsigned char *out,
+                           size_t len, const void *key,
+                           unsigned char ivec[16], block128_f block);
+void CRYPTO_cbc128_decrypt(const unsigned char *in, unsigned char *out,
+                           size_t len, const void *key,
+                           unsigned char ivec[16], block128_f block);
+
+void CRYPTO_cfb128_encrypt(const unsigned char *in, unsigned char *out,
+                           size_t len, const void *key,
+                           unsigned char ivec[16], int *num,
+                           int enc, block128_f block);
+
+void CRYPTO_ofb128_encrypt(const unsigned char *in, unsigned char *out,
+                           size_t len, const void *key,
+                           unsigned char ivec[16], int *num,
+                           block128_f block);
+
+void CRYPTO_ctr128_encrypt(const unsigned char *in, unsigned char *out,
+                           size_t len, const void *key,
+                           unsigned char ivec[16],
+                           unsigned char ecount_buf[16], unsigned int *num,
+                           block128_f block);
 ]]
 
 local function get32(pc, n)
@@ -200,121 +198,173 @@ local function SMS4_Update_block(rk, _in, _out, enc)
     put32(X[3], _out, 12)
 end
 
-local function sms4_encrypt(_in, _out, key)
-    local sms4key = ffi_cast("sms4_key_t*", key)
+local function sm4_encrypt(_in, _out, key)
+    local sms4key = ffi_cast("SM4_KEY*", key)
     SMS4_Update_block(sms4key.rk, _in, _out, true)
 end
 
-local function sms4_decrypt(_in, _out, key)
-    local sms4key = ffi_cast("sms4_key_t*", key)
+local function sm4_decrypt(_in, _out, key)
+    local sms4key = ffi_cast("SM4_KEY*", key)
     SMS4_Update_block(sms4key.rk, _in, _out, false)
 end
 
-local function sms4_wrap_init_key(ctx, key, iv, enc)
+local function sm4_init_key(ctx, key, iv, enc)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local wctx = ffi_cast("EVP_SMS4_WRAP_CTX*", cipher_data)
-    if iv == ffi_null and key == ffi_null then
+    local ks = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    ks.ks.rk = SMS4_Init(key)
+    return 1
+end
+
+local function sm4_ecb_encrypt(_in, _out, key, enc)
+    if enc == 1 then
+        sm4_encrypt(_in, _out, key)
+    else
+        sm4_decrypt(_in, _out, key)
+    end
+end
+
+local function sm4_cbc_encrypt(_in, _out, len, key, ivec, enc)
+    if enc == 1 then
+        C.CRYPTO_cbc128_encrypt(_in, _out, len, key, ivec, ffi_cast("block128_f", sm4_encrypt))
+    else
+        C.CRYPTO_cbc128_decrypt(_in, _out, len, key, ivec, ffi_cast("block128_f", sm4_decrypt))
+    end
+end
+
+local function sm4_cfb128_encrypt(_in, _out, len, key, ivec, num, enc)
+    C.CRYPTO_cfb128_encrypt(_in, _out, len, key, ivec, num, enc, ffi_cast("block128_f", sm4_encrypt))
+end
+
+local function sm4_ofb128_encrypt(_in, _out, len, key, ivec, num)
+    C.CRYPTO_ofb128_encrypt(_in, _out, len, key, ivec, num, ffi_cast("block128_f", sm4_encrypt))
+end
+
+local function sm4_ecb_cipher(ctx, _out, _in, inl)
+    local cipher = C.EVP_CIPHER_CTX_cipher(ctx)
+    local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
+    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    local bl = cipher.block_size
+    if (inl < bl) then
         return 1
     end
-
-    if key ~= ffi_null then
-        wctx.ks.ks.rk = SMS4_Init(key)
-        if iv == ffi_null then
-            wctx.iv = ffi_null
-        end
-    end
-
-    if iv ~= ffi_null then
-        ffi_copy(C.EVP_CIPHER_CTX_iv_noconst(ctx), iv, C.EVP_CIPHER_CTX_iv_length(ctx))
-        wctx.iv = C.EVP_CIPHER_CTX_iv_noconst(ctx)
+    inl = tonumber(inl - bl);
+    for i = 0, inl, bl do
+        sm4_ecb_encrypt(_in + i, _out + i, dat.ks, C.EVP_CIPHER_CTX_encrypting(ctx))
     end
 
     return 1
 end
 
-local function sms4_wrap_cipher(ctx, _out, _in, inlen)
+local function sm4_cbc_cipher(ctx, _out, _in, inl)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local wctx = ffi_cast("EVP_SMS4_WRAP_CTX*", cipher_data)
+    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
 
-    -- SMS4 wrap with padding has IV length of 4, without padding 8
-    local pad = C.EVP_CIPHER_CTX_iv_length(ctx) == 4
-
-    -- No final operation so always return zero length
-    if _in == ffi_null then
-        return 0
+    while inl >= EVP_MAXCHUNK do
+        sm4_cbc_encrypt(_in, _out, EVP_MAXCHUNK, dat.ks,
+            C.EVP_CIPHER_CTX_iv_noconst(ctx), C.EVP_CIPHER_CTX_encrypting(ctx))
+        inl = inl - EVP_MAXCHUNK
+        _in = _in + EVP_MAXCHUNK
+        _out = _out + EVP_MAXCHUNK
     end
-    -- Input length must always be non-zero
-    if tonumber(inlen) == 0 then
-        return -1
+    if inl > 0 then
+        sm4_cbc_encrypt(_in, _out, inl, dat.ks,
+            C.EVP_CIPHER_CTX_iv_noconst(ctx), C.EVP_CIPHER_CTX_encrypting(ctx))
     end
-    -- If decrypting need at least 16 bytes and multiple of 8
-    if C.EVP_CIPHER_CTX_encrypting(ctx) == 0 and (tonumber(inlen) < 16 or band(tonumber(inlen), 0x7) ~= 0) then
-        return -1
-    end
-
-    -- If not padding input must be multiple of 8
-    if not pad and band(tonumber(inlen), 0x7) ~= 0 then
-        return -1
-    end
-
-    if _out == ffi_null then
-        if C.EVP_CIPHER_CTX_encrypting(ctx) == 1 then
-            -- If padding round up to multiple of 8
-            if pad then
-                inlen = (tonumber(inlen) + 7) / 8 * 8;
-            end
-            --  8 byte prefix
-            return inlen + 8
-        else
-            -- If not padding output will be exactly 8 bytes smaller than
-            -- input. If padding it will be at least 8 bytes smaller but we
-            -- don't know how much.
-            return inlen - 8
-        end
-    end
-
-    local rv = 0
-    local ks = ffi_new("sms4_key_t[1]", { wctx.ks.ks })
-    if pad then
-        if C.EVP_CIPHER_CTX_encrypting(ctx) == 1 then
-            rv = C.CRYPTO_128_wrap_pad(ks, wctx.iv, _out, _in, inlen, ffi_cast("block128_f", sms4_encrypt))
-        else
-            rv = C.CRYPTO_128_unwrap_pad(ks, wctx.iv, _out, _in, inlen, ffi_cast("block128_f", sms4_decrypt))
-        end
-    else
-        if C.EVP_CIPHER_CTX_encrypting(ctx) == 1 then
-            rv = C.CRYPTO_128_wrap(ks, wctx.iv, _out, _in, inlen, ffi_cast("block128_f", sms4_encrypt))
-        else
-            rv = C.CRYPTO_128_unwrap(ks, wctx.iv, _out, _in, inlen, ffi_cast("block128_f", sms4_decrypt))
-        end
-    end
-
-    return tonumber(rv) ~= 0 and tonumber(rv) or -1;
-end
-
-local function sms4_ctrl(ctx, type, arg, ptr)
-    C.EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW)
     return 1
 end
 
-function _M.cipher(_cipher, _size)
+local function sm4_cfb128_cipher(ctx, _out, _in, inl)
+    local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
+    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+
+    local chunk = EVP_MAXCHUNK
+    if inl < chunk then
+        chunk = inl
+    end
+    while inl > 0 and inl >= chunk do
+        local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+        sm4_cfb128_encrypt(_in, _out, chunk, dat.ks,
+            C.EVP_CIPHER_CTX_iv_noconst(ctx), num, C.EVP_CIPHER_CTX_encrypting(ctx))
+        C.EVP_CIPHER_CTX_set_num(ctx, num[0])
+        inl = inl - chunk
+        _in = _in + chunk
+        _out = _out + chunk
+        if inl < chunk then
+            chunk = inl
+        end
+    end
+    return 1
+end
+
+local function sm4_ofb128_cipher(ctx, _out, _in, inl)
+    local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
+    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+
+    while inl >= EVP_MAXCHUNK do
+        local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+        sm4_ofb128_encrypt(_in, _out, EVP_MAXCHUNK, dat.ks, C.EVP_CIPHER_CTX_iv_noconst(ctx), num)
+        C.EVP_CIPHER_CTX_set_num(ctx, num[0])
+        inl = inl - EVP_MAXCHUNK
+        _in = _in + EVP_MAXCHUNK
+        _out = _out + EVP_MAXCHUNK
+    end
+    if inl > 0 then
+        local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+        sm4_ofb128_encrypt(_in, _out, inl, dat.ks, C.EVP_CIPHER_CTX_iv_noconst(ctx), num)
+        C.EVP_CIPHER_CTX_set_num(ctx, num[0])
+    end
+    return 1
+end
+
+local function sm4_ctr_cipher(ctx, _out, _in, inl)
+    local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
+    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+
+    local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+
+    C.CRYPTO_ctr128_encrypt(_in, _out, inl, dat.ks,
+        C.EVP_CIPHER_CTX_iv_noconst(ctx),
+        C.EVP_CIPHER_CTX_buf_noconst(ctx), num,
+        ffi_cast("block128_f", sm4_encrypt))
+
+    C.EVP_CIPHER_CTX_set_num(ctx, num[0])
+
+    return 1
+end
+
+local function defs_cipher(nid, block_size, key_len, iv_len, flags, do_cipher)
     local cipher = ffi_new("EVP_CIPHER[1]")
-    cipher[0].nid = 1161
-    cipher[0].block_size = 8
-    cipher[0].key_len = 16
-    cipher[0].iv_len = 4
-    cipher[0].flags = SMS4_WRAP_FLAGS
-    cipher[0].init = sms4_wrap_init_key
-    cipher[0].do_cipher = sms4_wrap_cipher
+    cipher[0].nid = nid
+    cipher[0].block_size = block_size
+    cipher[0].key_len = key_len
+    cipher[0].iv_len = iv_len
+    cipher[0].flags = flags
+    cipher[0].init = sm4_init_key
+    cipher[0].do_cipher = do_cipher
     cipher[0].cleanup = ffi_null
-    cipher[0].ctx_size = ffi.sizeof("EVP_SMS4_WRAP_CTX")
+    cipher[0].ctx_size = ffi.sizeof("EVP_SM4_KEY")
     cipher[0].set_asn1_parameters = ffi_null
     cipher[0].get_asn1_parameters = ffi_null
-    cipher[0].ctrl = sms4_ctrl
+    cipher[0].ctrl = ffi_null
     cipher[0].app_data = ffi_null
+    return cipher
+end
 
-    local _cipher = _cipher or "cbc"
-    return { size = 128, cipher = _cipher, method = cipher }
+local ciphers = {
+    ecb128 = defs_cipher(1133, 16, 16, 16, 0x1, sm4_ecb_cipher),
+    cbc128 = defs_cipher(1134, 16, 16, 16, 0x2, sm4_cbc_cipher),
+    ofb128 = defs_cipher(1135, 16, 16, 16, 0x4, sm4_ofb128_cipher),
+    cfb128 = defs_cipher(1137, 16, 16, 16, 0x3, sm4_cfb128_cipher),
+    ctr128 = defs_cipher(1139, 1, 16, 16, 0x5, sm4_ctr_cipher)
+}
+
+function _M.cipher(_cipher, _size)
+    local _cipher = _cipher or "ecb"
+    local _size = _size or 128
+    if not ciphers[_cipher .. _size] then
+        return nil
+    end
+    return { size = _size, cipher = _cipher, method = ciphers[_cipher .. _size]}
 end
 
 function _M.new(self, key)
