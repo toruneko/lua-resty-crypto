@@ -11,10 +11,30 @@ local rshift = bit.rshift
 local ffi_new = ffi.new
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
+local C = ffi.C
 local setmetatable = setmetatable
 
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
+
+ffi.cdef [[
+// openssl 1.1.1
+typedef unsigned int SM3_WORD;
+enum {
+    SM3_LBLOCK = 16
+};
+
+typedef struct SM3state_st {
+   SM3_WORD A, B, C, D, E, F, G, H;
+   SM3_WORD Nl, Nh;
+   SM3_WORD data[SM3_LBLOCK];
+   unsigned int num;
+} SM3_CTX;
+
+int sm3_init(SM3_CTX *c);
+int sm3_update(SM3_CTX *c, const void *data, size_t len);
+int sm3_final(unsigned char *md, SM3_CTX *c);
+]]
 
 local digest_len = 32
 local buf = ffi_new("char[?]", digest_len)
@@ -23,6 +43,9 @@ local ok, new_tab = pcall(require, "table.new")
 if not ok then
     new_tab = function(narr, nrec) return {} end
 end
+
+local ctx_ptr_type = ffi.typeof("SM3_CTX[1]")
+local support = pcall(function() C.sm3_init(ffi_new(ctx_ptr_type)) end)
 
 local function get32(pc, n)
     return bor(lshift(pc[n], 24), lshift(pc[n + 1], 16), lshift(pc[n + 2], 8), pc[n + 3])
@@ -127,6 +150,7 @@ local function SM3_Init(ctx)
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     })
+    return 1
 end
 
 local function SM3_Update_block(ctx, block, offset)
@@ -228,7 +252,7 @@ local function SM3_Update(ctx, data, len)
     return 1
 end
 
-local function SM3_Final(ctx, digest)
+local function SM3_Final(digest, ctx)
     local msglen = ffi_new("uint32_t[8]", { 0, 0, 0, 0, 0, 0, 0, 0 })
     local high = bor(rshift(ctx.lLen, 29), lshift(ctx.hLen, 3))
     local low = lshift(ctx.lLen, 3)
@@ -254,18 +278,24 @@ local function SM3_Final(ctx, digest)
 end
 
 function _M.new(self)
-    local ctx = new_tab(0, 4)
-    SM3_Init(ctx)
+    local ctx = support and ffi_new(ctx_ptr_type) or new_tab(0, 4)
+    local sm3_init = support and C.sm3_init or SM3_Init
+    if sm3_init(ctx) == 0 then
+        return nil
+    end
 
     return setmetatable({ _ctx = ctx }, mt)
 end
 
 function _M.update(self, s)
-    return SM3_Update(self._ctx, ffi_cast("unsigned char*", s), #s) == 1
+    local sm3_update = support and C.sm3_update or SM3_Update
+    return sm3_update(self._ctx, ffi_cast("unsigned char*", s), #s) == 1
 end
 
 function _M.final(self)
-    if SM3_Final(self._ctx, buf) == 1 then
+    local sm3_final = support and C.sm3_final or SM3_Final
+
+    if sm3_final(buf, self._ctx) == 1 then
         return ffi_str(buf, digest_len)
     end
 
@@ -273,8 +303,8 @@ function _M.final(self)
 end
 
 function _M.reset(self)
-    SM3_Init(self._ctx)
-    return true
+    local sm3_init = support and C.sm3_init or SM3_Init
+    return sm3_init(self._ctx) == 1
 end
 
 return _M

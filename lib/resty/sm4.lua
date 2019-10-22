@@ -13,6 +13,7 @@ local ffi_new = ffi.new
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
 local ffi_null = ffi.null
+local ffi_sizeof = ffi.sizeof
 local C = ffi.C
 local tonumber = tonumber
 local setmetatable = setmetatable
@@ -64,6 +65,14 @@ void CRYPTO_ctr128_encrypt(const unsigned char *in, unsigned char *out,
                            unsigned char ivec[16],
                            unsigned char ecount_buf[16], unsigned int *num,
                            block128_f block);
+
+// openssl 1.1.1
+const EVP_CIPHER *EVP_sm4_cbc(void);
+const EVP_CIPHER *EVP_sm4_ecb(void);
+const EVP_CIPHER *EVP_sm4_cfb(void);
+const EVP_CIPHER *EVP_sm4_cfb128(void);
+const EVP_CIPHER *EVP_sm4_ofb(void);
+const EVP_CIPHER *EVP_sm4_ctr(void);
 ]]
 
 local function get32(pc, n)
@@ -342,7 +351,7 @@ local function defs_cipher(nid, block_size, key_len, iv_len, flags, do_cipher)
     cipher[0].init = sm4_init_key
     cipher[0].do_cipher = do_cipher
     cipher[0].cleanup = ffi_null
-    cipher[0].ctx_size = ffi.sizeof("EVP_SM4_KEY")
+    cipher[0].ctx_size = ffi_sizeof("EVP_SM4_KEY")
     cipher[0].set_asn1_parameters = ffi_null
     cipher[0].get_asn1_parameters = ffi_null
     cipher[0].ctrl = ffi_null
@@ -350,12 +359,14 @@ local function defs_cipher(nid, block_size, key_len, iv_len, flags, do_cipher)
     return cipher
 end
 
+-- openssl 1.1.1
+local support = pcall(function() C.EVP_sm4_ecb() end)
 local ciphers = {
-    ecb128 = defs_cipher(1133, 16, 16, 16, 0x1, sm4_ecb_cipher),
-    cbc128 = defs_cipher(1134, 16, 16, 16, 0x2, sm4_cbc_cipher),
-    ofb128 = defs_cipher(1135, 16, 16, 16, 0x4, sm4_ofb128_cipher),
-    cfb128 = defs_cipher(1137, 16, 16, 16, 0x3, sm4_cfb128_cipher),
-    ctr128 = defs_cipher(1139, 1, 16, 16, 0x5, sm4_ctr_cipher)
+    ecb128 = support and C.EVP_sm4_ecb() or defs_cipher(1133, 16, 16, 16, 0x1, sm4_ecb_cipher),
+    cbc128 = support and C.EVP_sm4_cbc() or defs_cipher(1134, 16, 16, 16, 0x2, sm4_cbc_cipher),
+    ofb128 = support and C.EVP_sm4_ofb() or defs_cipher(1135, 16, 16, 16, 0x4, sm4_ofb128_cipher),
+    cfb128 = support and C.EVP_sm4_cfb128() or defs_cipher(1137, 16, 16, 16, 0x3, sm4_cfb128_cipher),
+    ctr128 = support and C.EVP_sm4_ctr() or defs_cipher(1139, 1, 16, 16, 0x5, sm4_ctr_cipher)
 }
 
 function _M.cipher(_cipher, _size)
