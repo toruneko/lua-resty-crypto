@@ -23,6 +23,7 @@ int BIO_read(BIO *b, void *data, int len);
 long BIO_ctrl(BIO *bp, int cmd, long larg, void *parg);
 ]]
 
+local char_ptr = ffi.typeof("char[?]")
 local BIO_CTRL_PENDING = 10
 
 function _M.new(data, method)
@@ -63,13 +64,12 @@ function _M.read(bio)
         return nil, ERR.get_error()
     end
 
-    local str = ffi_new("char[?]", len + 1)
-    if C.BIO_read(bio, str, len) <= 0 then
+    local data = ffi_new(char_ptr, len)
+    if C.BIO_read(bio, data, len) <= 0 then
         return nil, ERR.get_error()
     end
-    str[len] = 0
 
-    return ffi_str(str)
+    return ffi_str(data, len)
 end
 
 return _M

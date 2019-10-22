@@ -19,13 +19,16 @@ unsigned long ERR_get_error_line_data(const char **file, int *line,
                                       const char **data, int *flags);
 ]]
 
+local const_char_ptr = ffi.typeof("const char*[?]")
+local int_ptr = ffi.typeof("int[?]")
+
 local ERR_TXT_STRING = 0x02
 
 function _M.get_error()
     local err_queue = {}
     local i = 1
-    local data = ffi_new("const char*[1]")
-    local flags = ffi_new("int[1]")
+    local data = ffi_new(const_char_ptr, 1)
+    local flags = ffi_new(int_ptr, 1)
 
     while true do
         local code = C.ERR_get_error_line_data(nil, nil, data, flags)

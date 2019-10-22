@@ -38,14 +38,15 @@ int sm3_final(unsigned char *md, SM3_CTX *c);
 
 local digest_len = 32
 local buf = ffi_new("char[?]", digest_len)
+local unsigned_char_ptr = ffi.typeof("unsigned char*")
+local uint32_t_ptr = ffi.typeof("uint32_t[?]")
+local sm3_ctx_ptr = ffi.typeof("SM3_CTX[?]")
+local support = pcall(function() C.sm3_init(ffi_new(sm3_ctx_ptr, 1)) end)
 
 local ok, new_tab = pcall(require, "table.new")
 if not ok then
     new_tab = function(narr, nrec) return {} end
 end
-
-local ctx_ptr_type = ffi.typeof("SM3_CTX[1]")
-local support = pcall(function() C.sm3_init(ffi_new(ctx_ptr_type)) end)
 
 local function get32(pc, n)
     return bor(lshift(pc[n], 24), lshift(pc[n + 1], 16), lshift(pc[n + 2], 8), pc[n + 3])
@@ -104,7 +105,7 @@ for i = 17, 64, 1 do
 end
 
 -- 常量 T
-local T = ffi.new("const uint32_t[64]", {
+local T = ffi_new("const uint32_t[64]", {
     0x79cc4519, 0xf3988a32, 0xe7311465, 0xce6228cb, 0x9cc45197, 0x3988a32f, 0x7311465e, 0xe6228cbc,
     0xcc451979, 0x988a32f3, 0x311465e7, 0x6228cbce, 0xc451979c, 0x88a32f39, 0x11465e73, 0x228cbce6,
     0x9d8a7a87, 0x3b14f50f, 0x7629ea1e, 0xec53d43c, 0xd8a7a879, 0xb14f50f3, 0x629ea1e7, 0xc53d43ce,
@@ -126,7 +127,7 @@ local T = ffi.new("const uint32_t[64]", {
 --end
 
 -- 填充
-local sm3_padding = ffi.new("const uint32_t[64]", {
+local sm3_padding = ffi_new("const uint32_t[64]", {
     0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -144,7 +145,7 @@ local function SM3_Init(ctx)
         0xa96f30bc, 0x163138aa, 0xe38dee4d, 0xb0fb0e4e
     }
     -- 填充块
-    ctx.block = ffi_new("uint32_t[64]", {
+    ctx.block = ffi_new(uint32_t_ptr, 64, {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -158,8 +159,8 @@ local function SM3_Update_block(ctx, block, offset)
         offset = 0
     end
 
-    local W = ffi_new("uint32_t[68]")
-    local WP = ffi_new("uint32_t[64]")
+    local W = ffi_new(uint32_t_ptr, 68)
+    local WP = ffi_new(uint32_t_ptr, 64)
 
     for i = 1, 16, 1 do
         local j = i - 1
@@ -253,7 +254,7 @@ local function SM3_Update(ctx, data, len)
 end
 
 local function SM3_Final(digest, ctx)
-    local msglen = ffi_new("uint32_t[8]", { 0, 0, 0, 0, 0, 0, 0, 0 })
+    local msglen = ffi_new(uint32_t_ptr, 8, { 0, 0, 0, 0, 0, 0, 0, 0 })
     local high = bor(rshift(ctx.lLen, 29), lshift(ctx.hLen, 3))
     local low = lshift(ctx.lLen, 3)
     put32(high, msglen, 0)
@@ -278,7 +279,7 @@ local function SM3_Final(digest, ctx)
 end
 
 function _M.new(self)
-    local ctx = support and ffi_new(ctx_ptr_type) or new_tab(0, 4)
+    local ctx = support and ffi_new(sm3_ctx_ptr, 1) or new_tab(0, 4)
     local sm3_init = support and C.sm3_init or SM3_Init
     if sm3_init(ctx) == 0 then
         return nil
@@ -289,7 +290,7 @@ end
 
 function _M.update(self, s)
     local sm3_update = support and C.sm3_update or SM3_Update
-    return sm3_update(self._ctx, ffi_cast("unsigned char*", s), #s) == 1
+    return sm3_update(self._ctx, ffi_cast(unsigned_char_ptr, s), #s) == 1
 end
 
 function _M.final(self)

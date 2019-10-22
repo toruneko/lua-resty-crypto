@@ -7,6 +7,7 @@ local ffi_cast = ffi.cast
 local ffi_gc = ffi.gc
 local ffi_null = ffi.null
 local C = ffi.C
+local type = type
 local ipairs = ipairs
 
 local _M = { _VERSION = '0.0.1' }
@@ -19,7 +20,9 @@ void OPENSSL_sk_free(OPENSSL_STACK *st);
 int OPENSSL_sk_push(OPENSSL_STACK *st, void *data);
 ]]
 
-local function sk_new(type, items)
+local intptr_t = ffi.typeof("intptr_t")
+
+local function sk_new(st, items)
     if not items and type(items) ~= "table" then
         return nil
     end
@@ -34,7 +37,7 @@ local function sk_new(type, items)
         C.OPENSSL_sk_push(stack, item)
     end
 
-    return ffi_cast("struct stack_st_" .. type .. " *", ffi_cast("intptr_t", stack))
+    return ffi_cast("struct stack_st_" .. st .. " *", ffi_cast(intptr_t, stack))
 end
 
 function _M.X509_new(certs)

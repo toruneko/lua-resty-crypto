@@ -13,6 +13,7 @@ local ffi_new = ffi.new
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
 local ffi_null = ffi.null
+local ffi_copy = ffi.copy
 local ffi_sizeof = ffi.sizeof
 local C = ffi.C
 local tonumber = tonumber
@@ -75,6 +76,13 @@ const EVP_CIPHER *EVP_sm4_ofb(void);
 const EVP_CIPHER *EVP_sm4_ctr(void);
 ]]
 
+local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
+local uint32_t_ptr = ffi.typeof("uint32_t[?]")
+local int_ptr = ffi.typeof("int[?]")
+local EVP_SM4_KEY_ptr = ffi.typeof("EVP_SM4_KEY*")
+local SM4_KEY_ptr = ffi.typeof("SM4_KEY*")
+local block128_f = ffi.typeof("block128_f")
+
 local function get32(pc, n)
     return bor(lshift(pc[n], 24), lshift(pc[n + 1], 16), lshift(pc[n + 2], 8), pc[n + 3])
 end
@@ -92,10 +100,10 @@ local function S(x, n)
 end
 
 -- 系统参数 FK
-local FK = ffi.new("uint32_t[4]", { 0xA3B1BAC6, 0x56AA3350, 0x677D9197, 0xB27022DC })
+local FK = ffi_new("const uint32_t[4]", { 0xA3B1BAC6, 0x56AA3350, 0x677D9197, 0xB27022DC })
 
 -- 固定参数 CK
-local CK = ffi.new("uint32_t[32]", {
+local CK = ffi_new("const uint32_t[32]", {
     0x00070E15, 0x1C232A31, 0x383F464D, 0x545B6269,
     0x70777E85, 0x8C939AA1, 0xA8AFB6BD, 0xC4CBD2D9,
     0xE0E7EEF5, 0xFC030A11, 0x181F262D, 0x343B4249,
@@ -107,7 +115,7 @@ local CK = ffi.new("uint32_t[32]", {
 })
 
 -- Sbox
-local Sbox = ffi.new("uint32_t[256]", {
+local Sbox = ffi_new("const uint32_t[256]", {
     0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7, 0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,
     0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3, 0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,
     0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a, 0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,
@@ -165,13 +173,13 @@ local function F1(x0, x1, x2, x3, rk)
 end
 
 local function SMS4_Init(key)
-    local K = ffi_new("uint32_t[4]")
+    local K = ffi_new(uint32_t_ptr, 4)
     K[0] = bxor(get32(key, 0), FK[0])
     K[1] = bxor(get32(key, 4), FK[1])
     K[2] = bxor(get32(key, 8), FK[2])
     K[3] = bxor(get32(key, 12), FK[3])
 
-    local rk = ffi_new("uint32_t[32]")
+    local rk = ffi_new(uint32_t_ptr, 32)
     for i = 0, 8 - 1, 1 do
         local j = 4 * i
         K[0] = F1(K[0], K[1], K[2], K[3], CK[j])
@@ -186,7 +194,7 @@ local function SMS4_Init(key)
 end
 
 local function SMS4_Update_block(rk, _in, _out, enc)
-    local X = ffi_new("uint32_t[4]")
+    local X = ffi_new(uint32_t_ptr, 4)
     X[0] = get32(_in, 0)
     X[1] = get32(_in, 4)
     X[2] = get32(_in, 8)
@@ -208,19 +216,20 @@ local function SMS4_Update_block(rk, _in, _out, enc)
 end
 
 local function sm4_encrypt(_in, _out, key)
-    local sms4key = ffi_cast("SM4_KEY*", key)
+    local sms4key = ffi_cast(SM4_KEY_ptr, key)
     SMS4_Update_block(sms4key.rk, _in, _out, true)
 end
 
 local function sm4_decrypt(_in, _out, key)
-    local sms4key = ffi_cast("SM4_KEY*", key)
+    local sms4key = ffi_cast(SM4_KEY_ptr, key)
     SMS4_Update_block(sms4key.rk, _in, _out, false)
 end
 
 local function sm4_init_key(ctx, key, iv, enc)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local ks = ffi_cast("EVP_SM4_KEY*", cipher_data)
-    ks.ks.rk = SMS4_Init(key)
+    local ks = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
+    local rk = SMS4_Init(key)
+    ffi_copy(ks.ks.rk, rk, 32)
     return 1
 end
 
@@ -234,24 +243,24 @@ end
 
 local function sm4_cbc_encrypt(_in, _out, len, key, ivec, enc)
     if enc == 1 then
-        C.CRYPTO_cbc128_encrypt(_in, _out, len, key, ivec, ffi_cast("block128_f", sm4_encrypt))
+        C.CRYPTO_cbc128_encrypt(_in, _out, len, key, ivec, ffi_cast(block128_f, sm4_encrypt))
     else
-        C.CRYPTO_cbc128_decrypt(_in, _out, len, key, ivec, ffi_cast("block128_f", sm4_decrypt))
+        C.CRYPTO_cbc128_decrypt(_in, _out, len, key, ivec, ffi_cast(block128_f, sm4_decrypt))
     end
 end
 
 local function sm4_cfb128_encrypt(_in, _out, len, key, ivec, num, enc)
-    C.CRYPTO_cfb128_encrypt(_in, _out, len, key, ivec, num, enc, ffi_cast("block128_f", sm4_encrypt))
+    C.CRYPTO_cfb128_encrypt(_in, _out, len, key, ivec, num, enc, ffi_cast(block128_f, sm4_encrypt))
 end
 
 local function sm4_ofb128_encrypt(_in, _out, len, key, ivec, num)
-    C.CRYPTO_ofb128_encrypt(_in, _out, len, key, ivec, num, ffi_cast("block128_f", sm4_encrypt))
+    C.CRYPTO_ofb128_encrypt(_in, _out, len, key, ivec, num, ffi_cast(block128_f, sm4_encrypt))
 end
 
 local function sm4_ecb_cipher(ctx, _out, _in, inl)
     local cipher = C.EVP_CIPHER_CTX_cipher(ctx)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    local dat = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
     local bl = cipher.block_size
     if (inl < bl) then
         return 1
@@ -266,7 +275,7 @@ end
 
 local function sm4_cbc_cipher(ctx, _out, _in, inl)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    local dat = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
 
     while inl >= EVP_MAXCHUNK do
         sm4_cbc_encrypt(_in, _out, EVP_MAXCHUNK, dat.ks,
@@ -284,14 +293,14 @@ end
 
 local function sm4_cfb128_cipher(ctx, _out, _in, inl)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    local dat = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
 
     local chunk = EVP_MAXCHUNK
     if inl < chunk then
         chunk = inl
     end
     while inl > 0 and inl >= chunk do
-        local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+        local num = ffi_new(int_ptr, 1, { C.EVP_CIPHER_CTX_num(ctx) })
         sm4_cfb128_encrypt(_in, _out, chunk, dat.ks,
             C.EVP_CIPHER_CTX_iv_noconst(ctx), num, C.EVP_CIPHER_CTX_encrypting(ctx))
         C.EVP_CIPHER_CTX_set_num(ctx, num[0])
@@ -307,10 +316,10 @@ end
 
 local function sm4_ofb128_cipher(ctx, _out, _in, inl)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    local dat = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
 
     while inl >= EVP_MAXCHUNK do
-        local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+        local num = ffi_new(int_ptr, 1, { C.EVP_CIPHER_CTX_num(ctx) })
         sm4_ofb128_encrypt(_in, _out, EVP_MAXCHUNK, dat.ks, C.EVP_CIPHER_CTX_iv_noconst(ctx), num)
         C.EVP_CIPHER_CTX_set_num(ctx, num[0])
         inl = inl - EVP_MAXCHUNK
@@ -318,7 +327,7 @@ local function sm4_ofb128_cipher(ctx, _out, _in, inl)
         _out = _out + EVP_MAXCHUNK
     end
     if inl > 0 then
-        local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+        local num = ffi_new(int_ptr, 1, { C.EVP_CIPHER_CTX_num(ctx) })
         sm4_ofb128_encrypt(_in, _out, inl, dat.ks, C.EVP_CIPHER_CTX_iv_noconst(ctx), num)
         C.EVP_CIPHER_CTX_set_num(ctx, num[0])
     end
@@ -327,14 +336,14 @@ end
 
 local function sm4_ctr_cipher(ctx, _out, _in, inl)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
-    local dat = ffi_cast("EVP_SM4_KEY*", cipher_data)
+    local dat = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
 
-    local num = ffi_new("int[1]", { C.EVP_CIPHER_CTX_num(ctx) })
+    local num = ffi_new(int_ptr, 1, { C.EVP_CIPHER_CTX_num(ctx) })
 
     C.CRYPTO_ctr128_encrypt(_in, _out, inl, dat.ks,
         C.EVP_CIPHER_CTX_iv_noconst(ctx),
         C.EVP_CIPHER_CTX_buf_noconst(ctx), num,
-        ffi_cast("block128_f", sm4_encrypt))
+        ffi_cast(block128_f, sm4_encrypt))
 
     C.EVP_CIPHER_CTX_set_num(ctx, num[0])
 
@@ -342,7 +351,7 @@ local function sm4_ctr_cipher(ctx, _out, _in, inl)
 end
 
 local function defs_cipher(nid, block_size, key_len, iv_len, flags, do_cipher)
-    local cipher = ffi_new("EVP_CIPHER[1]")
+    local cipher = ffi_new("EVP_CIPHER[?]", 1)
     cipher[0].nid = nid
     cipher[0].block_size = block_size
     cipher[0].key_len = key_len
@@ -375,17 +384,17 @@ function _M.cipher(_cipher, _size)
     if not ciphers[_cipher .. _size] then
         return nil
     end
-    return { size = _size, cipher = _cipher, method = ciphers[_cipher .. _size]}
+    return { size = _size, cipher = _cipher, method = ciphers[_cipher .. _size] }
 end
 
 function _M.new(self, key)
-    local rk = SMS4_Init(ffi_new("const unsigned char[16]", key))
+    local rk = SMS4_Init(ffi_new(unsigned_char_ptr, 16, key))
     return setmetatable({ rk = rk }, mt)
 end
 
 function _M.encrypt(self, block)
-    local _in = ffi_new("const unsigned char[16]", block)
-    local _out = ffi_new("unsigned char[16]")
+    local _in = ffi_new(unsigned_char_ptr, 16, block)
+    local _out = ffi_new(unsigned_char_ptr, 16)
 
     SMS4_Update_block(self.rk, _in, _out, true)
 
@@ -393,8 +402,8 @@ function _M.encrypt(self, block)
 end
 
 function _M.decrypt(self, block)
-    local _in = ffi_new("const unsigned char[16]", block)
-    local _out = ffi_new("unsigned char[16]")
+    local _in = ffi_new(unsigned_char_ptr, 16, block)
+    local _out = ffi_new(unsigned_char_ptr, 16)
 
     SMS4_Update_block(self.rk, _in, _out, false)
 

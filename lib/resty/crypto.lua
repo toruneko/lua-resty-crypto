@@ -16,7 +16,7 @@ local type = type
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
 
-ffi.cdef[[
+ffi.cdef [[
 const EVP_MD *EVP_md5(void);
 const EVP_MD *EVP_sha(void);
 const EVP_MD *EVP_sha1(void);
@@ -49,6 +49,9 @@ typedef unsigned char u_char;
 u_char * ngx_hex_dump(u_char *dst, const u_char *src, size_t len);
 ]]
 
+local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
+local int_ptr = ffi.typeof("int[?]")
+
 local hash
 hash = {
     md5 = C.EVP_md5(),
@@ -78,8 +81,8 @@ function _M.new(key, salt, _cipher, _hash, hash_rounds)
     local _hash = _hash or hash.md5
     local hash_rounds = hash_rounds or 1
     local _cipherLength = _cipher.size / 8
-    local gen_key = ffi_new("unsigned char[?]",_cipherLength)
-    local gen_iv = ffi_new("unsigned char[?]",_cipherLength)
+    local gen_key = ffi_new(unsigned_char_ptr, _cipherLength)
+    local gen_iv = ffi_new(unsigned_char_ptr, _cipherLength)
 
     if type(_hash) == "table" then
         if not _hash.iv or #_hash.iv ~= 16 then
@@ -111,8 +114,7 @@ function _M.new(key, salt, _cipher, _hash, hash_rounds)
 
         if C.EVP_BytesToKey(_cipher.method, _hash, salt, key, #key,
             hash_rounds, gen_key, gen_iv)
-                ~= _cipherLength
-        then
+                ~= _cipherLength then
             return nil, ERR.get_error()
         end
     end
@@ -134,9 +136,9 @@ end
 function _M.encrypt(self, s)
     local s_len = #s
     local max_len = s_len + 16
-    local buf = ffi_new("unsigned char[?]", max_len)
-    local out_len = ffi_new("int[1]")
-    local tmp_len = ffi_new("int[1]")
+    local buf = ffi_new(unsigned_char_ptr, max_len)
+    local out_len = ffi_new(int_ptr, 1)
+    local tmp_len = ffi_new(int_ptr, 1)
     local ctx = self._encrypt_ctx
 
     if C.EVP_EncryptInit_ex(ctx, nil, nil, nil, nil) == 0 then
@@ -157,9 +159,9 @@ end
 
 function _M.decrypt(self, s)
     local s_len = #s
-    local buf = ffi_new("unsigned char[?]", s_len)
-    local out_len = ffi_new("int[1]")
-    local tmp_len = ffi_new("int[1]")
+    local buf = ffi_new(unsigned_char_ptr, s_len)
+    local out_len = ffi_new(int_ptr, 1)
+    local tmp_len = ffi_new(int_ptr, 1)
     local ctx = self._decrypt_ctx
 
     if C.EVP_DecryptInit_ex(ctx, nil, nil, nil, nil) == 0 then
