@@ -8,6 +8,7 @@ local ffi_gc = ffi.gc
 local ffi_new = ffi.new
 local ffi_copy = ffi.copy
 local ffi_str = ffi.string
+local ffi_null = ffi.null
 
 local _M = { _VERSION = '0.0.1' }
 
@@ -117,7 +118,11 @@ function _M.MD_CTX_new()
 end
 
 function _M.get_digestbyname(algorithm)
-    return C.EVP_get_digestbyname(algorithm)
+    local md = C.EVP_get_digestbyname(algorithm)
+    if md == ffi_null then
+        return nil
+    end
+    return md
 end
 
 function _M.PKEY_new()
@@ -139,9 +144,14 @@ function _M.PKEY_CTX_new(pkey)
     return ctx
 end
 
+function _M.PKEY_encrypt_init(ctx)
+    return C.EVP_PKEY_encrypt_init(ctx)
+end
+
 function _M.PKEY_encrypt(ctx, str)
     local len = ffi_new(size_t_ptr, 1)
-    if C.EVP_PKEY_encrypt(ctx, nil, len, str, #str) <= 0 then
+    local ret = C.EVP_PKEY_encrypt(ctx, nil, len, str, #str)
+    if ret <= 0 then
         return nil, ERR.get_error()
     end
 
@@ -151,6 +161,10 @@ function _M.PKEY_encrypt(ctx, str)
     end
 
     return ffi_str(buf, len[0])
+end
+
+function _M.PKEY_decrypt_init(ctx)
+    return C.EVP_PKEY_decrypt_init(ctx)
 end
 
 function _M.PKEY_decrypt(ctx, str)

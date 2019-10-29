@@ -1,6 +1,7 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
 local BN = require "resty.crypto.bn"
+local ERR = require "resty.crypto.error"
 
 local ffi = require "ffi"
 local ffi_gc = ffi.gc
@@ -13,7 +14,6 @@ local tonumber = tonumber
 local _M = { _VERSION = '0.0.1' }
 
 ffi.cdef [[
-typedef struct ec_method_st EC_METHOD;
 typedef struct ec_group_st EC_GROUP;
 typedef struct ec_point_st EC_POINT;
 typedef struct ec_key_st EC_KEY;
@@ -64,7 +64,7 @@ end
 function _M.KEY_new_by_curve_name(nid)
     local eckey = C.EC_KEY_new_by_curve_name(nid)
     if eckey == ffi_null then
-        return nil, "eckey not found"
+        return nil, "curver not found"
     end
     ffi_gc(eckey, C.EC_KEY_free)
 
@@ -76,6 +76,10 @@ function _M.KEY_generate_key(eckey)
         return C.EC_KEY_check_key(eckey)
     end
     return 0
+end
+
+function _M.KEY_check_key(eckey)
+    return C.EC_KEY_check_key(eckey)
 end
 
 function _M.KEY_get0_private_key(eckey)

@@ -19,9 +19,9 @@ local mt = { __index = _M }
 
 
 local PADDING = {
-    RSA_PKCS1_PADDING = 1,  -- RSA_size - 11
+    RSA_PKCS1_PADDING = 1, -- RSA_size - 11
     RSA_SSLV23_PADDING = 2, -- RSA_size - 11
-    RSA_NO_PADDING = 3,     -- RSA_size
+    RSA_NO_PADDING = 3, -- RSA_size
     RSA_PKCS1_OAEP_PADDING = 4, -- RSA_size - 42
 }
 _M.PADDING = PADDING
@@ -32,7 +32,7 @@ local KEY_TYPE = {
 }
 _M.KEY_TYPE = KEY_TYPE
 
-ffi.cdef[[
+ffi.cdef [[
 typedef struct rsa_st RSA;
 RSA *RSA_new(void);
 void RSA_free(RSA *rsa);
@@ -111,14 +111,13 @@ function _M.new(_, opts)
         if md == nil then
             return nil, "Unknown message digest"
         end
-
     end
 
     -- ctx init for encrypt or decrypt
     -- default for encrypt/decrypt if nothing is set
     if opts.padding or not opts.digest then
-        local init_func = is_pub and C.EVP_PKEY_encrypt_init
-                or C.EVP_PKEY_decrypt_init
+        local init_func = is_pub and EVP.PKEY_encrypt_init
+                or EVP.PKEY_decrypt_init
         if init_func(ctx) <= 0 then
             return nil, ERR.get_error()
         end
@@ -144,12 +143,12 @@ function _M.generate_key(bits, pkcs8)
 
     -- Set public exponent to 65537
     if BN.set_word(bn, 65537) ~= 1 then
-        return nil, ERR.get_error()
+        return nil, nil, ERR.get_error()
     end
 
     -- Generate key
     if C.RSA_generate_key_ex(rsa, bits, bn, nil) ~= 1 then
-        return nil, ERR.get_error()
+        return nil, nil, ERR.get_error()
     end
 
     local pub_write_func
@@ -161,17 +160,17 @@ function _M.generate_key(bits, pkcs8)
 
     local public_key, err = pub_write_func(rsa)
     if not public_key then
-        return nil, err
+        return nil, nil, err
     end
 
     local priv_write_func
     if pkcs8 == true then
         local pk, err = EVP.PKEY_new(rsa)
         if not pk then
-            return nil, err
+            return nil, nil, err
         end
         if C.EVP_PKEY_set1_RSA(pk, rsa) == 0 then
-            return nil, ERR.get_error()
+            return nil, nil, ERR.get_error()
         end
         rsa = pk
         priv_write_func = PEM.write_PKCS8PrivateKey
