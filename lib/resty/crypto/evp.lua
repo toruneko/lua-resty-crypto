@@ -5,6 +5,9 @@ local ERR = require "resty.crypto.error"
 local ffi = require "ffi"
 local C = ffi.C
 local ffi_gc = ffi.gc
+local ffi_new = ffi.new
+local ffi_copy = ffi.copy
+local ffi_str = ffi.string
 
 local _M = { _VERSION = '0.0.1' }
 
@@ -60,8 +63,31 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_new(EVP_PKEY *pkey, ENGINE *e);
 void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx);
 int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
                       int cmd, int p1, void *p2);
+
+// PKEY encrypt
+int EVP_PKEY_encrypt_init(EVP_PKEY_CTX *ctx);
+int EVP_PKEY_encrypt(EVP_PKEY_CTX *ctx,
+        unsigned char *out, size_t *outlen,
+        const unsigned char *in, size_t inlen);
+
+//PKEY decrypt
+int EVP_PKEY_decrypt_init(EVP_PKEY_CTX *ctx);
+int EVP_PKEY_decrypt(EVP_PKEY_CTX *ctx,
+                     unsigned char *out, size_t *outlen,
+                     const unsigned char *in, size_t inlen);
+
+// Digest Sign & Verify
+int EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type);
+int EVP_DigestUpdate(EVP_MD_CTX *ctx, const unsigned char *in, int inl);
+int EVP_SignFinal(EVP_MD_CTX *ctx,unsigned char *sig,unsigned int *s,
+                  EVP_PKEY *pkey);
+int EVP_VerifyFinal(EVP_MD_CTX *ctx,unsigned char *sigbuf, unsigned int siglen,
+                    EVP_PKEY *pkey);
 ]]
 
+local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
+local unsigned_int_ptr = ffi.typeof("unsigned int[?]")
+local size_t_ptr = ffi.typeof("size_t[?]")
 
 local evp_md_ctx_new
 local evp_md_ctx_free
@@ -111,6 +137,66 @@ function _M.PKEY_CTX_new(pkey)
     end
     ffi_gc(ctx, C.EVP_PKEY_CTX_free)
     return ctx
+end
+
+function _M.PKEY_encrypt(ctx, str)
+    local len = ffi_new(size_t_ptr, 1)
+    if C.EVP_PKEY_encrypt(ctx, nil, len, str, #str) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    local buf = ffi_new(unsigned_char_ptr, len[0])
+    if C.EVP_PKEY_encrypt(ctx, buf, len, str, #str) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    return ffi_str(buf, len[0])
+end
+
+function _M.PKEY_decrypt(ctx, str)
+    local len = ffi_new(size_t_ptr, 1)
+    if C.EVP_PKEY_decrypt(ctx, nil, len, str, #str) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    local buf = ffi_new(unsigned_char_ptr, len[0])
+    if C.EVP_PKEY_decrypt(ctx, buf, len, str, #str) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    return ffi_str(buf, len[0])
+end
+
+function _M.DigestInit(md_ctx, md)
+    return C.EVP_DigestInit(md_ctx, md)
+end
+
+function _M.DigestUpdate(md_ctx, str)
+    return C.EVP_DigestUpdate(md_ctx, str, #str)
+end
+
+function _M.SignFinal(md_ctx, pkey)
+    local size = C.EVP_PKEY_size(pkey)
+    local buf = ffi_new(unsigned_char_ptr, size)
+    local len = ffi_new(unsigned_int_ptr, 1)
+    if C.EVP_SignFinal(md_ctx, buf, len, pkey) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    return ffi_str(buf, len[0])
+end
+
+function _M.VerifyFinal(md_ctx, pkey, sig)
+    local siglen = #sig
+    local size = C.EVP_PKEY_size(pkey)
+    local buf = siglen <= size and ffi_new(unsigned_char_ptr, size)
+            or ffi_new(unsigned_char_ptr, siglen)
+    ffi_copy(buf, sig, siglen)
+    if C.EVP_VerifyFinal(md_ctx, buf, siglen, pkey) <= 0 then
+        return false, ERR.get_error()
+    end
+
+    return true
 end
 
 return _M

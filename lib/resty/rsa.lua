@@ -10,7 +10,6 @@ local ERR = require "resty.crypto.error"
 local ffi = require "ffi"
 local ffi_new = ffi.new
 local ffi_copy = ffi.copy
-local ffi_str = ffi.string
 local ffi_gc = ffi.gc
 local C = ffi.C
 local setmetatable = setmetatable
@@ -39,29 +38,9 @@ RSA *RSA_new(void);
 void RSA_free(RSA *rsa);
 int RSA_generate_key_ex(RSA *rsa, int bits, BIGNUM *e, BN_GENCB *cb);
 int EVP_PKEY_set1_RSA(EVP_PKEY *pkey, RSA *key);
-
-int EVP_PKEY_encrypt_init(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_encrypt(EVP_PKEY_CTX *ctx,
-        unsigned char *out, size_t *outlen,
-        const unsigned char *in, size_t inlen);
-
-int EVP_PKEY_decrypt_init(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_decrypt(EVP_PKEY_CTX *ctx,
-                     unsigned char *out, size_t *outlen,
-                     const unsigned char *in, size_t inlen);
-
-
-int EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type);
-int EVP_DigestUpdate(EVP_MD_CTX *ctx, const unsigned char *in, int inl);
-int EVP_SignFinal(EVP_MD_CTX *ctx,unsigned char *sig,unsigned int *s,
-                  EVP_PKEY *pkey);
-int EVP_VerifyFinal(EVP_MD_CTX *ctx,unsigned char *sigbuf, unsigned int siglen,
-                    EVP_PKEY *pkey);
 ]]
 
 local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
-local unsigned_int_ptr = ffi.typeof("unsigned int[?]")
-local size_t_ptr = ffi.typeof("size_t[?]")
 
 local EVP_PKEY_ALG_CTRL = 0x1000
 local EVP_PKEY_CTRL_RSA_PADDING = EVP_PKEY_ALG_CTRL + 1
@@ -150,11 +129,8 @@ function _M.new(_, opts)
         end
     end
 
-    local size = EVP.PKEY_size(pkey)
     return setmetatable({
         pkey = pkey,
-        size = size,
-        buf = ffi_new(unsigned_char_ptr, size),
         _encrypt_ctx = is_pub and ctx or nil,
         _decrypt_ctx = not is_pub and ctx or nil,
         is_pub = is_pub,
@@ -217,19 +193,8 @@ function _M.decrypt(self, str)
         return nil, "not inited for decrypt"
     end
 
-    local len = ffi_new(size_t_ptr, 1)
-    if C.EVP_PKEY_decrypt(ctx, nil, len, str, #str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    local buf = self.buf
-    if C.EVP_PKEY_decrypt(ctx, buf, len, str, #str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return ffi_str(buf, len[0])
+    return EVP.PKEY_decrypt(ctx, str)
 end
-
 
 function _M.encrypt(self, str)
     local ctx = self._encrypt_ctx
@@ -237,19 +202,8 @@ function _M.encrypt(self, str)
         return nil, "not inited for encrypt"
     end
 
-    local len = ffi_new(size_t_ptr, 1)
-    if C.EVP_PKEY_encrypt(ctx, nil, len, str, #str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    local buf = self.buf
-    if C.EVP_PKEY_encrypt(ctx, buf, len, str, #str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return ffi_str(buf, len[0])
+    return EVP.PKEY_encrypt(ctx, str)
 end
-
 
 function _M.sign(self, str)
     if self.is_pub then
@@ -258,23 +212,16 @@ function _M.sign(self, str)
 
     local md_ctx = EVP.MD_CTX_new()
 
-    if C.EVP_DigestInit(md_ctx, self.md) <= 0 then
+    if EVP.DigestInit(md_ctx, self.md) <= 0 then
         return nil, ERR.get_error()
     end
 
-    if C.EVP_DigestUpdate(md_ctx, str, #str) <= 0 then
+    if EVP.DigestUpdate(md_ctx, str) <= 0 then
         return nil, ERR.get_error()
     end
 
-    local buf = self.buf
-    local len = ffi_new(unsigned_int_ptr, 1)
-    if C.EVP_SignFinal(md_ctx, self.buf, len, self.pkey) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return ffi_str(buf, len[0])
+    return EVP.SignFinal(md_ctx, self.pkey)
 end
-
 
 function _M.verify(self, str, sig)
     if not self.is_pub then
@@ -283,23 +230,15 @@ function _M.verify(self, str, sig)
 
     local md_ctx = EVP.MD_CTX_new()
 
-    if C.EVP_DigestInit(md_ctx, self.md) <= 0 then
+    if EVP.DigestInit(md_ctx, self.md) <= 0 then
         return nil, ERR.get_error()
     end
 
-    if C.EVP_DigestUpdate(md_ctx, str, #str) <= 0 then
+    if EVP.DigestUpdate(md_ctx, str) <= 0 then
         return nil, ERR.get_error()
     end
 
-    local siglen = #sig
-    local buf = siglen <= self.size and self.buf
-            or ffi_new(unsigned_char_ptr, siglen)
-    ffi_copy(buf, sig, siglen)
-    if C.EVP_VerifyFinal(md_ctx, buf, siglen, self.pkey) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return true
+    return EVP.VerifyFinal(md_ctx, self.pkey, sig)
 end
 
 
