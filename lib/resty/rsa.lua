@@ -38,6 +38,7 @@ typedef struct rsa_st RSA;
 RSA *RSA_new(void);
 void RSA_free(RSA *rsa);
 int RSA_generate_key_ex(RSA *rsa, int bits, BIGNUM *e, BN_GENCB *cb);
+int EVP_PKEY_set1_RSA(EVP_PKEY *pkey, RSA *key);
 
 int EVP_PKEY_encrypt_init(EVP_PKEY_CTX *ctx);
 int EVP_PKEY_encrypt(EVP_PKEY_CTX *ctx,
@@ -110,9 +111,13 @@ function _M.new(_, opts)
     end
 
     -- EVP_PKEY
-    local pkey, err = EVP.PKEY_new(rsa)
+    local pkey, err = EVP.PKEY_new()
     if not pkey then
         return nil, err
+    end
+
+    if C.EVP_PKEY_set1_RSA(pkey, rsa) == 0 then
+        return nil, ERR.get_error()
     end
 
     --EVP_PKEY_CTX
@@ -188,6 +193,9 @@ function _M.generate_key(bits, pkcs8)
         local pk, err = EVP.PKEY_new(rsa)
         if not pk then
             return nil, err
+        end
+        if C.EVP_PKEY_set1_RSA(pk, rsa) == 0 then
+            return nil, ERR.get_error()
         end
         rsa = pk
         priv_write_func = PEM.write_PKCS8PrivateKey

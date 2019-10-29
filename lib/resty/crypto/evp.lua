@@ -53,8 +53,6 @@ typedef struct evp_pkey_st EVP_PKEY;
 EVP_PKEY *EVP_PKEY_new(void);
 void EVP_PKEY_free(EVP_PKEY *key);
 int EVP_PKEY_size(EVP_PKEY *pkey);
-typedef struct rsa_st RSA;
-int EVP_PKEY_set1_RSA(EVP_PKEY *pkey, RSA *key);
 
 //  public key algorithm context functions
 typedef struct evp_pkey_ctx_st EVP_PKEY_CTX;
@@ -96,14 +94,9 @@ function _M.get_digestbyname(algorithm)
     return C.EVP_get_digestbyname(algorithm)
 end
 
-function _M.PKEY_new(rsa)
+function _M.PKEY_new()
     local pkey = C.EVP_PKEY_new()
     ffi_gc(pkey, C.EVP_PKEY_free)
-    if rsa then
-        if C.EVP_PKEY_set1_RSA(pkey, rsa) == 0 then
-            return nil, ERR.get_error()
-        end
-    end
     return pkey
 end
 
