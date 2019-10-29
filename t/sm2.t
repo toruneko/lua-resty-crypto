@@ -25,14 +25,15 @@ __DATA__
         content_by_lua_block {
             local resty_sm2 = require "resty.sm2"
             local resty_str = require "resty.utils.string"
+            local pubkey, prvkey = resty_sm2.generate_key()
             local data = "ssssssssss"
             local sm2_for_sign, err = resty_sm2.new({
-                private_key = "10C9308C5D192CC41C064F7407A846B58ADABEB709EDA4EF77AC0B44767AB329",
+                private_key = prvkey,
                 algorithm = "sha1",
             })
             local signed, err = sm2_for_sign:sign(data)
             local sm2_for_verify, err = resty_sm2.new({
-                public_key = "044EA5AF846E8CDD6740AE49E44119F70D0EE771BD24EA6F6C921E17A7AA15E6AC7A9D79DB60DAEB8A71122C815A056DDC1DEE46213179EE734DA9F3FA81BCC70F",
+                public_key = pubkey,
                 algorithm = "sha1",
             })
             local ok , err = sm2_for_verify:verify(data, signed)
