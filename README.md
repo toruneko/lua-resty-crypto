@@ -49,15 +49,15 @@ ngx.say(sm4:decrypt(enc_data))
 ```lua
 local resty_crypto = require "resty.crypto"
 local resty_aes = require "resty.aes"
-local sm4, err = resty_crypto.new("secret", nil, resty_aes.cipher("cbc", 128))
-if not sm4 then
+local aes, err = resty_crypto.new("secret", nil, resty_aes.cipher("cbc", 128))
+if not aes then
     error(err)
 end
-local enc_data, err = sm4:encrypt("abc")
+local enc_data, err = aes:encrypt("abc")
 if err then
     error(err)
 end
-ngx.say(sm4:decrypt(enc_data))
+ngx.say(aes:decrypt(enc_data))
 ```
 
 #### HMAC
