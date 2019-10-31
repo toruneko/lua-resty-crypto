@@ -278,7 +278,7 @@ local function SM3_Final(digest, ctx)
     return 1
 end
 
-function _M.new(self)
+function _M.new()
     local ctx = support and ffi_new(sm3_ctx_ptr, 1) or new_tab(0, 4)
     local sm3_init = support and C.sm3_init or SM3_Init
     if sm3_init(ctx) == 0 then

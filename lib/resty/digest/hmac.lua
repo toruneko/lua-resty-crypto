@@ -57,7 +57,7 @@ function mt.__call(self, s)
     end
 end
 
-function _M.new(self, key, _hash)
+function _M.new(key, _hash)
     local ctx = C.HMAC_CTX_new()
     ffi_gc(ctx, C.HMAC_CTX_free)
 
@@ -74,7 +74,7 @@ function _M.update(self, s)
     return C.HMAC_Update(self._ctx, s, #s) == 1
 end
 
-function _M.final(self, s)
+function _M.final(self)
     if C.HMAC_Final(self._ctx, buf, res_len) == 1 then
         return ffi_str(buf, res_len[0])
     end

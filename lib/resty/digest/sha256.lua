@@ -35,7 +35,7 @@ local buf = ffi_new("char[?]", digest_len)
 local ctx_ptr_type = ffi.typeof("SHA256_CTX[1]")
 
 
-function _M.new(self)
+function _M.new()
     local ctx = ffi_new(ctx_ptr_type)
     if C.SHA256_Init(ctx) == 0 then
         return nil
