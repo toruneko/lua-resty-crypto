@@ -122,7 +122,7 @@ function _M.new(_, opts)
             return nil, ERR.get_error()
         end
 
-        if C.EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, -1, EVP_PKEY_CTRL_RSA_PADDING,
+        if EVP.PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, -1, EVP_PKEY_CTRL_RSA_PADDING,
             opts.padding or PADDING.RSA_PKCS1_PADDING, nil) <= 0 then
             return ERR.get_error()
         end
@@ -209,17 +209,13 @@ function _M.sign(self, str)
         return nil, "not inited for sign"
     end
 
-    local md_ctx = EVP.MD_CTX_new()
+    local md_ctx = EVP.MD_CTX_new(self._decrypt_ctx)
 
-    if EVP.DigestInit(md_ctx, self.md) <= 0 then
+    if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
         return nil, ERR.get_error()
     end
 
-    if EVP.DigestUpdate(md_ctx, str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return EVP.SignFinal(md_ctx, self.pkey)
+    return EVP.DigestSign(md_ctx, str)
 end
 
 function _M.verify(self, str, sig)
@@ -227,17 +223,13 @@ function _M.verify(self, str, sig)
         return nil, "not inited for verify"
     end
 
-    local md_ctx = EVP.MD_CTX_new()
+    local md_ctx = EVP.MD_CTX_new(self._encrypt_ctx)
 
-    if EVP.DigestInit(md_ctx, self.md) <= 0 then
+    if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
         return nil, ERR.get_error()
     end
 
-    if EVP.DigestUpdate(md_ctx, str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return EVP.VerifyFinal(md_ctx, self.pkey, sig)
+    return EVP.DigestVerify(md_ctx, str, sig)
 end
 
 

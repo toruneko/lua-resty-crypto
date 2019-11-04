@@ -27,18 +27,25 @@ __DATA__
             local resty_str = require "resty.utils.string"
             local pubkey, prvkey = resty_sm2.generate_key()
             local data = "ssssssssss"
-            local digests = {"sha1", "sha224", "sha256", "sha384", "sha512", "sha3-224", "sha3-256", "sha3-384", "sha3-512"}
+            local digests = {"sm3", "sha1", "sha224", "sha256", "sha384", "sha512", "sha3-224", "sha3-256", "sha3-384", "sha3-512"}
             for _, digest in ipairs(digests) do
-                local sm2_for_sign, err = resty_sm2.new({
+                local sm2, err = resty_sm2.new({
                     private_key = prvkey,
-                    algorithm = digest,
-                })
-                local signed, err = sm2_for_sign:sign(data)
-                local sm2_for_verify, err = resty_sm2.new({
                     public_key = pubkey,
                     algorithm = digest,
+                    id = "toruneko@outlook.com"
                 })
-                local ok , err = sm2_for_verify:verify(data, signed)
+                if err then
+                    ngx.log(ngx.ERR, "init:", err)
+                end
+                local signed, err = sm2:sign(data)
+                if err then
+                    ngx.log(ngx.ERR, "sign:", err)
+                end
+                local ok , err = sm2:verify(data, signed)
+                if err then
+                    ngx.log(ngx.ERR, "verify:", err)
+                end
                 ngx.say(digest .. ":" .. tostring(ok))
             end
         }
@@ -46,6 +53,7 @@ __DATA__
 --- request
 GET /t
 --- response_body
+sm3:true
 sha1:true
 sha224:true
 sha256:true

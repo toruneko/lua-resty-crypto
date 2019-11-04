@@ -217,7 +217,7 @@ true
 --- request
 GET /t
 --- response_body
-new rsa err: bad base64 decode
+new rsa err: 9:145:100:bad base64 decode
 --- no_error_log
 [error]
 
@@ -477,7 +477,7 @@ true
 GET /t
 --- response_body_like
 sig length: 128
-verify err: (bad signature|algorithm mismatch)
+verify err: (4:145:104:bad signature|algorithm mismatch)
 --- no_error_log
 [error]
 
@@ -993,6 +993,6 @@ child process, OpenSSL will prompt the password, blocking the test until being k
 --- request
 GET /t
 --- response_body_like
-new rsa err: (processing error: while reading strings: )?problems getting password: bad password read
+new rsa err: (40:113:107:processing error: while reading strings: )?9:100:109:problems getting password: 9:106:104:bad password read
 --- no_error_log
 [error]

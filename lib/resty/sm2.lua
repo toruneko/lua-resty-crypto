@@ -5,6 +5,7 @@ local EVP = require "resty.crypto.evp"
 local ERR = require "resty.crypto.error"
 
 local ffi = require "ffi"
+local ffi_cast = ffi.cast
 local C = ffi.C
 
 local setmetatable = setmetatable
@@ -14,9 +15,16 @@ local mt = { __index = _M }
 
 ffi.cdef [[
 int EVP_PKEY_set1_EC_KEY(EVP_PKEY *pkey, EC_KEY *key);
+int EVP_PKEY_set_alias_type(EVP_PKEY *pkey, int type);
 ]]
 
+local void_ptr = ffi.typeof("void *")
+
 local NID_SM2 = 1172
+local EVP_PKEY_SM2 = NID_SM2
+
+local EVP_PKEY_ALG_CTRL = 0x1000
+local EVP_PKEY_CTRL_SET1_ID = EVP_PKEY_ALG_CTRL + 11
 
 function _M.new(opts)
     local eckey, err = EC.KEY_new_by_curve_name(NID_SM2)
@@ -24,19 +32,11 @@ function _M.new(opts)
         return nil, err
     end
 
-    local is_pub = false
-
-    if opts.public_key then
-        if EC.KEY_set_public_key(eckey, opts.public_key) == 0 then
-            return nil, ERR.get_error()
-        end
-        is_pub = true
-    elseif opts.private_key then
-        if EC.KEY_set_private_key(eckey, opts.private_key) == 0 then
-            return nil, ERR.get_error()
-        end
-    else
-        return nil, "public_key or private_key not found"
+    if EC.KEY_set_public_key(eckey, opts.public_key) == 0 then
+        return nil, ERR.get_error()
+    end
+    if EC.KEY_set_private_key(eckey, opts.private_key) == 0 then
+        return nil, ERR.get_error()
     end
 
     -- EVP_PKEY
@@ -49,13 +49,18 @@ function _M.new(opts)
         return nil, ERR.get_error()
     end
 
+    C.EVP_PKEY_set_alias_type(pkey, EVP_PKEY_SM2)
+
     --EVP_PKEY_CTX
-    local ctx, err = EVP.PKEY_CTX_new(pkey)
-    if not ctx then
+    local pkey_ctx, err = EVP.PKEY_CTX_new(pkey)
+    if not pkey_ctx then
         return nil, err
     end
 
-    -- md_ctx init for sign or verify; if signature algorithm is seted
+    local id = opts.id or "default sm2 ID"
+    EVP.PKEY_CTX_ctrl(pkey_ctx, -1, -1, EVP_PKEY_CTRL_SET1_ID, #id, ffi_cast(void_ptr, id))
+
+    -- md_ctx init for sign or verify
     local md = opts.algorithm and EVP.get_digestbyname(opts.algorithm)
     if opts.algorithm and not md then
         return nil, "Unknown message digest"
@@ -63,9 +68,7 @@ function _M.new(opts)
 
     return setmetatable({
         pkey = pkey,
-        _encrypt_ctx = is_pub and ctx or nil,
-        _decrypt_ctx = not is_pub and ctx or nil,
-        is_pub = is_pub,
+        pkey_ctx = pkey_ctx,
         md = md,
     }, mt)
 end
@@ -109,39 +112,23 @@ end
 --end
 
 function _M.sign(self, str)
-    if self.is_pub then
-        return nil, "not inited for sign"
-    end
+    local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
 
-    local md_ctx = EVP.MD_CTX_new()
-
-    if EVP.DigestInit(md_ctx, self.md) <= 0 then
+    if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
         return nil, ERR.get_error()
     end
 
-    if EVP.DigestUpdate(md_ctx, str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return EVP.SignFinal(md_ctx, self.pkey)
+    return EVP.DigestSign(md_ctx, str)
 end
 
 function _M.verify(self, str, sig)
-    if not self.is_pub then
-        return nil, "not inited for verify"
-    end
+    local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
 
-    local md_ctx = EVP.MD_CTX_new()
-
-    if EVP.DigestInit(md_ctx, self.md) <= 0 then
+    if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
         return nil, ERR.get_error()
     end
 
-    if EVP.DigestUpdate(md_ctx, str) <= 0 then
-        return nil, ERR.get_error()
-    end
-
-    return EVP.VerifyFinal(md_ctx, self.pkey, sig)
+    return EVP.DigestVerify(md_ctx, str, sig)
 end
 
 return _M

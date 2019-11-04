@@ -38,6 +38,19 @@ typedef struct evp_cipher_st {
 EVP_CIPHER_CTX *EVP_CIPHER_CTX_new();
 void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *a);
 
+//  private key allocation functions
+typedef struct evp_pkey_st EVP_PKEY;
+EVP_PKEY *EVP_PKEY_new(void);
+void EVP_PKEY_free(EVP_PKEY *key);
+int EVP_PKEY_size(EVP_PKEY *pkey);
+
+//  public key algorithm context functions
+typedef struct evp_pkey_ctx_st EVP_PKEY_CTX;
+EVP_PKEY_CTX *EVP_PKEY_CTX_new(EVP_PKEY *pkey, ENGINE *e);
+void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx);
+int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
+                      int cmd, int p1, void *p2);
+
 //	EVP digest routines
 typedef struct env_md_st EVP_MD;
 typedef struct env_md_ctx_st EVP_MD_CTX;
@@ -52,18 +65,7 @@ void EVP_MD_CTX_destroy(EVP_MD_CTX *ctx);
 EVP_MD_CTX *EVP_MD_CTX_new(void);
 void EVP_MD_CTX_free(EVP_MD_CTX *ctx);
 
-//  private key allocation functions
-typedef struct evp_pkey_st EVP_PKEY;
-EVP_PKEY *EVP_PKEY_new(void);
-void EVP_PKEY_free(EVP_PKEY *key);
-int EVP_PKEY_size(EVP_PKEY *pkey);
-
-//  public key algorithm context functions
-typedef struct evp_pkey_ctx_st EVP_PKEY_CTX;
-EVP_PKEY_CTX *EVP_PKEY_CTX_new(EVP_PKEY *pkey, ENGINE *e);
-void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
-                      int cmd, int p1, void *p2);
+void EVP_MD_CTX_set_pkey_ctx(EVP_MD_CTX *ctx, EVP_PKEY_CTX *pctx);
 
 // PKEY encrypt
 int EVP_PKEY_encrypt_init(EVP_PKEY_CTX *ctx);
@@ -78,12 +80,15 @@ int EVP_PKEY_decrypt(EVP_PKEY_CTX *ctx,
                      const unsigned char *in, size_t inlen);
 
 // Digest Sign & Verify
-int EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type);
-int EVP_DigestUpdate(EVP_MD_CTX *ctx, const unsigned char *in, int inl);
-int EVP_SignFinal(EVP_MD_CTX *ctx,unsigned char *sig,unsigned int *s,
-                  EVP_PKEY *pkey);
-int EVP_VerifyFinal(EVP_MD_CTX *ctx,unsigned char *sigbuf, unsigned int siglen,
-                    EVP_PKEY *pkey);
+int EVP_DigestSignInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
+                    const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
+int EVP_DigestSign(EVP_MD_CTX *ctx, unsigned char *sigret,
+                size_t *siglen, const unsigned char *tbs,
+                size_t tbslen);
+int EVP_DigestVerifyInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
+                      const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
+int EVP_DigestVerify(EVP_MD_CTX *ctx, const unsigned char *sigret,
+                  size_t siglen, const unsigned char *tbs, size_t tbslen);
 ]]
 
 local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
@@ -111,9 +116,12 @@ function _M.CIPHER_CTX_new()
     return cipher_ctx
 end
 
-function _M.MD_CTX_new()
+function _M.MD_CTX_new(pkey_ctx)
     local md_ctx = evp_md_ctx_new()
     ffi_gc(md_ctx, evp_md_ctx_free)
+    if pkey_ctx then
+        C.EVP_MD_CTX_set_pkey_ctx(md_ctx, pkey_ctx)
+    end
     return md_ctx
 end
 
@@ -142,6 +150,10 @@ function _M.PKEY_CTX_new(pkey)
     end
     ffi_gc(ctx, C.EVP_PKEY_CTX_free)
     return ctx
+end
+
+function _M.PKEY_CTX_ctrl(ctx, keytype, optype, cmd, p1, p2)
+    return C.EVP_PKEY_CTX_ctrl(ctx, keytype, optype, cmd, p1, p2)
 end
 
 function _M.PKEY_encrypt_init(ctx)
@@ -181,35 +193,31 @@ function _M.PKEY_decrypt(ctx, str)
     return ffi_str(buf, len[0])
 end
 
-function _M.DigestInit(md_ctx, md)
-    return C.EVP_DigestInit(md_ctx, md)
+function _M.DigestSignInit(md_ctx, md, pkey)
+    return C.EVP_DigestSignInit(md_ctx, ffi_null, md, ffi_null, pkey)
 end
 
-function _M.DigestUpdate(md_ctx, str)
-    return C.EVP_DigestUpdate(md_ctx, str, #str)
-end
-
-function _M.SignFinal(md_ctx, pkey)
-    local size = C.EVP_PKEY_size(pkey)
-    local buf = ffi_new(unsigned_char_ptr, size)
-    local len = ffi_new(unsigned_int_ptr, 1)
-    if C.EVP_SignFinal(md_ctx, buf, len, pkey) <= 0 then
+function _M.DigestSign(md_ctx, str)
+    local siglen = ffi_new(size_t_ptr, 1)
+    if C.EVP_DigestSign(md_ctx, ffi_null, siglen, ffi_null, 0) <= 0 then
         return nil, ERR.get_error()
     end
 
-    return ffi_str(buf, len[0])
+    local sigret = ffi_new(unsigned_char_ptr, siglen[0])
+    if C.EVP_DigestSign(md_ctx, sigret, siglen, str, #str) <= 0 then
+        return nil, ERR.get_error()
+    end
+    return ffi_str(sigret, siglen[0])
 end
 
-function _M.VerifyFinal(md_ctx, pkey, sig)
-    local siglen = #sig
-    local size = C.EVP_PKEY_size(pkey)
-    local buf = siglen <= size and ffi_new(unsigned_char_ptr, size)
-            or ffi_new(unsigned_char_ptr, siglen)
-    ffi_copy(buf, sig, siglen)
-    if C.EVP_VerifyFinal(md_ctx, buf, siglen, pkey) <= 0 then
+function _M.DigestVerifyInit(md_ctx, md, pkey)
+    return C.EVP_DigestVerifyInit(md_ctx, ffi_null, md, ffi_null, pkey)
+end
+
+function _M.DigestVerify(md_ctx, str, sig)
+    if C.EVP_DigestVerify(md_ctx, sig, #sig, str, #str) <= 0 then
         return false, ERR.get_error()
     end
-
     return true
 end
 

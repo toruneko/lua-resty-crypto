@@ -55,7 +55,7 @@ function _M.get_builtin_curves()
     if size_t > 0 then
         local curvers = ffi_new(EC_builtin_curve_ptr, tonumber(size_t))
         if C.EC_get_builtin_curves(curvers, size_t) > 0 then
-            return curvers
+            return curvers, size_t
         end
     end
     return nil, "no builtin curvers"
