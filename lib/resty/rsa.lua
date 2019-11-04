@@ -2,6 +2,7 @@
 -- Copyright (C) by Zexuan Luo (spacewander)
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
+local VERSION = require "resty.crypto.version"
 local EVP = require "resty.crypto.evp"
 local PEM = require "resty.crypto.pem"
 local BN = require "resty.crypto.bn"
@@ -209,13 +210,25 @@ function _M.sign(self, str)
         return nil, "not inited for sign"
     end
 
-    local md_ctx = EVP.MD_CTX_new(self._decrypt_ctx)
+    if VERSION.patch_version() >= 256 then
+        local md_ctx = EVP.MD_CTX_new(self._decrypt_ctx)
+        if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
+            return nil, ERR.get_error()
+        end
+        return EVP.DigestSign(md_ctx, str)
+    end
 
-    if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
+    local md_ctx = EVP.MD_CTX_new()
+
+    if EVP.DigestInit(md_ctx, self.md) <= 0 then
         return nil, ERR.get_error()
     end
 
-    return EVP.DigestSign(md_ctx, str)
+    if EVP.DigestUpdate(md_ctx, str) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    return EVP.SignFinal(md_ctx, self.pkey)
 end
 
 function _M.verify(self, str, sig)
@@ -223,13 +236,25 @@ function _M.verify(self, str, sig)
         return nil, "not inited for verify"
     end
 
-    local md_ctx = EVP.MD_CTX_new(self._encrypt_ctx)
+    if VERSION.patch_version() >= 256 then
+        local md_ctx = EVP.MD_CTX_new(self._encrypt_ctx)
+        if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
+            return nil, ERR.get_error()
+        end
+        return EVP.DigestVerify(md_ctx, str, sig)
+    end
 
-    if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
+    local md_ctx = EVP.MD_CTX_new()
+
+    if EVP.DigestInit(md_ctx, self.md) <= 0 then
         return nil, ERR.get_error()
     end
 
-    return EVP.DigestVerify(md_ctx, str, sig)
+    if EVP.DigestUpdate(md_ctx, str) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    return EVP.VerifyFinal(md_ctx, self.pkey, sig)
 end
 
 

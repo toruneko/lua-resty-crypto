@@ -80,6 +80,15 @@ int EVP_PKEY_decrypt(EVP_PKEY_CTX *ctx,
                      const unsigned char *in, size_t inlen);
 
 // Digest Sign & Verify
+// openssl 1.1.0
+int EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type);
+int EVP_DigestUpdate(EVP_MD_CTX *ctx, const unsigned char *in, int inl);
+int EVP_SignFinal(EVP_MD_CTX *ctx,unsigned char *sig,unsigned int *s,
+                  EVP_PKEY *pkey);
+int EVP_VerifyFinal(EVP_MD_CTX *ctx,unsigned char *sigbuf, unsigned int siglen,
+                    EVP_PKEY *pkey);
+
+// openssl 1.1.1
 int EVP_DigestSignInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
                     const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
 int EVP_DigestSign(EVP_MD_CTX *ctx, unsigned char *sigret,
@@ -191,6 +200,38 @@ function _M.PKEY_decrypt(ctx, str)
     end
 
     return ffi_str(buf, len[0])
+end
+
+function _M.DigestInit(md_ctx, md)
+    return C.EVP_DigestInit(md_ctx, md)
+end
+
+function _M.DigestUpdate(md_ctx, str)
+    return C.EVP_DigestUpdate(md_ctx, str, #str)
+end
+
+function _M.SignFinal(md_ctx, pkey)
+    local size = C.EVP_PKEY_size(pkey)
+    local buf = ffi_new(unsigned_char_ptr, size)
+    local len = ffi_new(unsigned_int_ptr, 1)
+    if C.EVP_SignFinal(md_ctx, buf, len, pkey) <= 0 then
+        return nil, ERR.get_error()
+    end
+
+    return ffi_str(buf, len[0])
+end
+
+function _M.VerifyFinal(md_ctx, pkey, sig)
+    local siglen = #sig
+    local size = C.EVP_PKEY_size(pkey)
+    local buf = siglen <= size and ffi_new(unsigned_char_ptr, size)
+            or ffi_new(unsigned_char_ptr, siglen)
+    ffi_copy(buf, sig, siglen)
+    if C.EVP_VerifyFinal(md_ctx, buf, siglen, pkey) <= 0 then
+        return false, ERR.get_error()
+    end
+
+    return true
 end
 
 function _M.DigestSignInit(md_ctx, md, pkey)
