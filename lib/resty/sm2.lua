@@ -32,10 +32,15 @@ function _M.new(opts)
         return nil, err
     end
 
-    if EC.KEY_set_public_key(eckey, opts.public_key) == 0 then
-        return nil, ERR.get_error()
+    local is_pub = true
+    if opts.private_key then
+        if EC.KEY_set_private_key(eckey, opts.private_key) == 0 then
+            return nil, ERR.get_error()
+        end
+        is_pub = false
     end
-    if EC.KEY_set_private_key(eckey, opts.private_key) == 0 then
+
+    if EC.KEY_set_public_key(eckey, opts.public_key) == 0 then
         return nil, ERR.get_error()
     end
 
@@ -69,6 +74,7 @@ function _M.new(opts)
     return setmetatable({
         pkey = pkey,
         pkey_ctx = pkey_ctx,
+        is_pub = is_pub,
         md = md,
     }, mt)
 end
@@ -112,6 +118,9 @@ end
 --end
 
 function _M.sign(self, str)
+    if self.is_pub then
+        return nil, "not inited for sign"
+    end
     local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
 
     if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
@@ -122,6 +131,9 @@ function _M.sign(self, str)
 end
 
 function _M.verify(self, str, sig)
+    if not self.is_pub then
+        return nil, "not inited for verify"
+    end
     local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
 
     if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
