@@ -46,7 +46,8 @@ function _M.get_error()
         end
 
         local err = C.ERR_reason_error_string(code)
-        err_queue[i] = parse_code(code) .. ":" .. ffi_str(err)
+        err_queue[i] = ffi_str(err)
+--        err_queue[i] = parse_code(code) .. ":" .. ffi_str(err)
         i = i + 1
 
         if data[0] ~= nil and band(flags[0], ERR_TXT_STRING) > 0 then
