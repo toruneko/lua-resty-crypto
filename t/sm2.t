@@ -18,7 +18,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: SM2 algorithm
+=== TEST 1: SM2 sign & verify
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {
@@ -72,3 +72,46 @@ sha3-512:true
 --- no_error_log
 [error]
 
+
+
+=== TEST 2: SM2 encrypt & decrypt
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local resty_sm2 = require "resty.sm2"
+            local resty_str = require "resty.utils.string"
+            local pubkey, prvkey = resty_sm2.generate_key()
+            local data = "ssssssssss"
+            local sm2_for_enc, err = resty_sm2.new({
+                public_key = pubkey,
+                algorithm = "sm3",
+                id = "toruneko@outlook.com"
+            })
+            if err then
+                ngx.log(ngx.ERR, "init:", err)
+            end
+            local enc_data, err = sm2_for_enc:encrypt(data)
+            if err then
+                ngx.log(ngx.ERR, "encrypt:", err)
+            end
+            local sm2_for_dec, err = resty_sm2.new({
+                private_key = prvkey,
+                public_key = pubkey,
+                algorithm = "sm3",
+                id = "toruneko@outlook.com"
+            })
+            local ok , err = sm2_for_dec:decrypt(enc_data)
+            if err then
+                ngx.log(ngx.ERR, "decrypt:", err)
+            end
+            ngx.say(tostring(ok))
+        }
+    }
+--- request
+GET /t
+--- response_body
+ssssssssss
+--- error_code: 200
+--- no_error_log
+[error]

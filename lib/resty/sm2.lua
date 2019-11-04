@@ -65,6 +65,12 @@ function _M.new(opts)
     local id = opts.id or "default sm2 ID"
     EVP.PKEY_CTX_ctrl(pkey_ctx, -1, -1, EVP_PKEY_CTRL_SET1_ID, #id, ffi_cast(void_ptr, id))
 
+    local init_func = is_pub and EVP.PKEY_encrypt_init
+            or EVP.PKEY_decrypt_init
+    if init_func(pkey_ctx) <= 0 then
+        return nil, ERR.get_error()
+    end
+
     -- md_ctx init for sign or verify
     local md = opts.algorithm and EVP.get_digestbyname(opts.algorithm)
     if opts.algorithm and not md then
@@ -98,24 +104,22 @@ function _M.generate_key()
 
     return pubkey, prvkey
 end
---
---function _M.decrypt(self, str)
---    local ctx = self._decrypt_ctx
---    if not ctx then
---        return nil, "not inited for decrypt"
---    end
---
---    return EVP.PKEY_decrypt(ctx, str)
---end
---
---function _M.encrypt(self, str)
---    local ctx = self._encrypt_ctx
---    if not ctx then
---        return nil, "not inited for encrypt"
---    end
---
---    return EVP.PKEY_encrypt(ctx, str)
---end
+
+function _M.decrypt(self, str)
+    if self.is_pub then
+        return nil, "not inited for decrypt"
+    end
+
+    return EVP.PKEY_decrypt(self.pkey_ctx, str)
+end
+
+function _M.encrypt(self, str)
+    if not self.is_pub then
+        return nil, "not inited for encrypt"
+    end
+
+    return EVP.PKEY_encrypt(self.pkey_ctx, str)
+end
 
 function _M.sign(self, str)
     if self.is_pub then
@@ -134,6 +138,7 @@ function _M.verify(self, str, sig)
     if not self.is_pub then
         return nil, "not inited for verify"
     end
+
     local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
 
     if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
