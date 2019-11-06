@@ -2,6 +2,7 @@
 
 local EC = require "resty.crypto.ec"
 local EVP = require "resty.crypto.evp"
+local PEM = require "resty.crypto.pem"
 local ERR = require "resty.crypto.error"
 
 local ffi = require "ffi"
@@ -83,6 +84,28 @@ function _M.new(opts)
         is_pub = is_pub,
         md = md,
     }, mt)
+end
+
+function _M.generate_eckey()
+    local eckey, err = EC.KEY_new_by_curve_name(NID_SM2)
+    if not eckey then
+        return nil, nil, err
+    end
+    if EC.KEY_generate_key(eckey) == 0 then
+        return nil, nil, ERR.get_error()
+    end
+
+    local public_key, err = PEM.write_bio_EC_PUBKEY(eckey)
+    if not public_key then
+        return nil, nil, err
+    end
+
+    local private_key, err = PEM.write_bio_ECPrivateKey(eckey)
+    if not private_key then
+        return nil, nil, err
+    end
+
+    return public_key, private_key
 end
 
 function _M.generate_key()
