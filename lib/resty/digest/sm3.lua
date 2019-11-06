@@ -11,37 +11,15 @@ local rshift = bit.rshift
 local ffi_new = ffi.new
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
-local C = ffi.C
 local setmetatable = setmetatable
 
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
 
-ffi.cdef [[
-// openssl 1.1.1
-typedef unsigned int SM3_WORD;
-enum {
-    SM3_LBLOCK = 16
-};
-
-typedef struct SM3state_st {
-   SM3_WORD A, B, C, D, E, F, G, H;
-   SM3_WORD Nl, Nh;
-   SM3_WORD data[SM3_LBLOCK];
-   unsigned int num;
-} SM3_CTX;
-
-int sm3_init(SM3_CTX *c);
-int sm3_update(SM3_CTX *c, const void *data, size_t len);
-int sm3_final(unsigned char *md, SM3_CTX *c);
-]]
-
 local digest_len = 32
 local buf = ffi_new("char[?]", digest_len)
 local unsigned_char_ptr = ffi.typeof("unsigned char*")
 local uint32_t_ptr = ffi.typeof("uint32_t[?]")
-local sm3_ctx_ptr = ffi.typeof("SM3_CTX[?]")
-local support = pcall(function() C.sm3_init(ffi_new(sm3_ctx_ptr, 1)) end)
 
 local ok, new_tab = pcall(require, "table.new")
 if not ok then
@@ -279,9 +257,8 @@ local function SM3_Final(digest, ctx)
 end
 
 function _M.new()
-    local ctx = support and ffi_new(sm3_ctx_ptr, 1) or new_tab(0, 4)
-    local sm3_init = support and C.sm3_init or SM3_Init
-    if sm3_init(ctx) == 0 then
+    local ctx = new_tab(0, 4)
+    if SM3_Init(ctx) == 0 then
         return nil
     end
 
@@ -289,14 +266,11 @@ function _M.new()
 end
 
 function _M.update(self, s)
-    local sm3_update = support and C.sm3_update or SM3_Update
-    return sm3_update(self._ctx, ffi_cast(unsigned_char_ptr, s), #s) == 1
+    return SM3_Update(self._ctx, ffi_cast(unsigned_char_ptr, s), #s) == 1
 end
 
 function _M.final(self)
-    local sm3_final = support and C.sm3_final or SM3_Final
-
-    if sm3_final(buf, self._ctx) == 1 then
+    if SM3_Final(buf, self._ctx) == 1 then
         return ffi_str(buf, digest_len)
     end
 
@@ -304,8 +278,7 @@ function _M.final(self)
 end
 
 function _M.reset(self)
-    local sm3_init = support and C.sm3_init or SM3_Init
-    return sm3_init(self._ctx) == 1
+    return SM3_Init(self._ctx) == 1
 end
 
 return _M

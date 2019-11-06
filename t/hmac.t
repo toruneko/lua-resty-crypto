@@ -23,8 +23,8 @@ __DATA__
 --- config
     location = /t {
         content_by_lua_block {
-            local resty_hmac = require "resty.digest.hmac"
-            local hmac = resty_hmac.new("hmac", resty_hmac.hash.sha1)
+            local resty_digest = require "resty.digest"
+            local hmac = resty_digest.new("sha1", "hmac")
             hmac:update("abc")
             ngx.say(hmac.tohex(hmac:final()))
         }
@@ -44,8 +44,8 @@ GET /t
 --- config
     location = /t {
         content_by_lua_block {
-            local resty_hmac = require "resty.digest.hmac"
-            local hmac = resty_hmac.new("hmac", resty_hmac.hash.sha1)
+            local resty_digest = require "resty.digest"
+            local hmac = resty_digest.new("sha1", "hmac")
             hmac:update("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd")
             ngx.say(hmac.tohex(hmac:final()))
         }
@@ -65,8 +65,8 @@ GET /t
 --- config
     location = /t {
         content_by_lua_block {
-            local resty_hmac = require "resty.digest.hmac"
-            local hmac = resty_hmac.new("hmac", resty_hmac.hash.sha1)
+            local resty_digest = require "resty.digest"
+            local hmac = resty_digest.new("sha1", "hmac")
             ngx.say(hmac("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd"))
         }
     }

@@ -1,6 +1,6 @@
 -- Copyright (C) by Thought Foundry Inc.
 
-local EVP = require "resty.crypto.evp"
+require "resty.crypto.evp"
 local str = require "resty.utils.string"
 
 local ffi = require "ffi"
@@ -11,14 +11,6 @@ local C = ffi.C
 local setmetatable = setmetatable
 
 ffi.cdef[[
-const EVP_MD *EVP_md5(void);
-const EVP_MD *EVP_sha1(void);
-const EVP_MD *EVP_sha224(void);
-const EVP_MD *EVP_sha256(void);
-const EVP_MD *EVP_sha384(void);
-const EVP_MD *EVP_sha512(void);
-const EVP_MD *EVP_sm3(void);
-
 typedef struct hmac_ctx_st HMAC_CTX;
 HMAC_CTX *HMAC_CTX_new(void);
 void HMAC_CTX_free(HMAC_CTX *ctx);
@@ -31,20 +23,8 @@ int HMAC_Final(HMAC_CTX *ctx, unsigned char *md, unsigned int *len);
 local _M = { _VERSION = '0.03' }
 local mt = { __index = _M }
 
-local sm3_support = pcall(function() C.EVP_sm3() end)
-
 local buf = ffi_new("unsigned char[64]")
 local res_len = ffi_new("unsigned int[1]")
-local hash = {
-    md5 = C.EVP_md5(),
-    sha1 = C.EVP_sha1(),
-    sha224 = C.EVP_sha224(),
-    sha256 = C.EVP_sha256(),
-    sha384 = C.EVP_sha384(),
-    sha512 = C.EVP_sha512(),
-    sm3 = sm3_support and C.EVP_sm3() or nil
-}
-_M.hash = hash
 
 function mt.__call(self, s)
     if not self:reset() then
@@ -58,8 +38,6 @@ end
 function _M.new(key, _hash)
     local ctx = C.HMAC_CTX_new()
     ffi_gc(ctx, C.HMAC_CTX_free)
-
-    local _hash = _hash or hash.md5
 
     if C.HMAC_Init_ex(ctx, key, #key, _hash, nil) == 0 then
         return nil

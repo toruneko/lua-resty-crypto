@@ -2,13 +2,15 @@
 
 local EVP = require "resty.crypto.evp"
 local ERR = require "resty.crypto.error"
+local HMAC = require "resty.digest.hmac"
+local SM3 = require "resty.digest.sm3"
 
 local ffi = require "ffi"
 local str = require "resty.utils.string"
 local setmetatable = setmetatable
 local C = ffi.C
 
-ffi.cdef[[
+ffi.cdef [[
 const EVP_MD *EVP_md5(void);
 const EVP_MD *EVP_sha1(void);
 const EVP_MD *EVP_sha224(void);
@@ -30,10 +32,8 @@ local hash = {
     sha256 = C.EVP_sha256(),
     sha384 = C.EVP_sha384(),
     sha512 = C.EVP_sha512(),
-    sm3 = sm3_support and C.EVP_sm3() or require "resty.digest.sm3"
+    sm3 = sm3_support and C.EVP_sm3() or SM3,
 }
-
-_M.hash = hash
 
 function mt.__call(self, s)
     if not self:reset() then
@@ -44,11 +44,21 @@ function mt.__call(self, s)
     end
 end
 
-function _M.new(_hash)
-    local md = hash[_hash] and hash[_hash] or hash.sha1
+function _M.new(name, key)
+    local md = hash[name] and hash[name] or EVP.get_digestbyname(name)
 
-    if _hash == "sm3" and not sm3_support then
-        return setmetatable({md = md.new()}, mt)
+    if not md then
+        return nil, "Unknown message digest"
+    end
+
+    -- sm3 compac for openssl 1.1.0
+    if name == "sm3" and not sm3_support then
+        return setmetatable({ md = md.new() }, mt)
+    end
+
+    -- hmac mode if key exists
+    if key then
+        return setmetatable({ md = HMAC.new(key, md) }, mt)
     end
 
     local md_ctx = EVP.MD_CTX_new()
