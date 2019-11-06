@@ -9,10 +9,7 @@ local STACK = require "resty.crypto.stack"
 
 local bit = require "bit"
 local ffi = require "ffi"
-local ffi_new = ffi.new
-local ffi_cast = ffi.cast
 local ffi_gc = ffi.gc
-local ffi_str = ffi.string
 local ffi_null = ffi.null
 local C = ffi.C
 local bor = bit.bor
