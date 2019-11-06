@@ -65,7 +65,7 @@ ngx.say(aes:decrypt(enc_data))
 `resty_hmac.hash`: `md5`, `sm3`, `sha1`, `sha224`, `sha256`, `sha384`, `sha512`
 
 ```lua
-local resty_hmac = require "resty.digest.hmac"
+local resty_hmac = require "resty.hmac"
 local hmac = resty_hmac.new("secret", resty_hmac.hash.md5)
 hmac:update("abc")
 ngx.say(hmac:final())

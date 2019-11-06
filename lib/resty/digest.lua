@@ -11,7 +11,6 @@ local digest = {
     sha256 = require "resty.digest.sha256",
     sha384 = require "resty.digest.sha384",
     sha512 = require "resty.digest.sha512",
-    hmac = require "resty.digest.hmac",
 }
 
 local _M = { _VERSION = '0.0.1' }
@@ -27,13 +26,13 @@ function mt.__call(self, s)
     end
 end
 
-function _M.new(algorithm, key)
+function _M.new(algorithm)
     local hash = digest[algorithm]
     if not hash then
         return nil, "digest algorithm not found"
     end
 
-    return setmetatable({ hash = hash.new(key) }, mt)
+    return setmetatable({ hash = hash.new() }, mt)
 end
 
 function _M.update(self, s)

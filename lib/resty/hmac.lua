@@ -11,10 +11,7 @@ local C = ffi.C
 local setmetatable = setmetatable
 
 ffi.cdef[[
-typedef struct hmac_ctx_st HMAC_CTX;
-
 const EVP_MD *EVP_md5(void);
-const EVP_MD *EVP_sha(void);
 const EVP_MD *EVP_sha1(void);
 const EVP_MD *EVP_sha224(void);
 const EVP_MD *EVP_sha256(void);
@@ -22,6 +19,7 @@ const EVP_MD *EVP_sha384(void);
 const EVP_MD *EVP_sha512(void);
 const EVP_MD *EVP_sm3(void);
 
+typedef struct hmac_ctx_st HMAC_CTX;
 HMAC_CTX *HMAC_CTX_new(void);
 void HMAC_CTX_free(HMAC_CTX *ctx);
 
@@ -52,7 +50,7 @@ function mt.__call(self, s)
     if not self:reset() then
         return nil
     end
-    if self:update(s) == 1 then
+    if self:update(s) then
         return str.tohex(self:final())
     end
 end
