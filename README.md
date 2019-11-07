@@ -72,3 +72,54 @@ hmac:update("abc")
 ngx.say(hmac:final())
 ngx.say(hmac("abcabcabc"))
 ```
+
+#### SM2
+
+```lua
+local resty_sm2 = require "resty.sm2"
+-- generator an eckey
+local pubkey, prvkey = resty_sm2.generate_key()
+-- new instance with sm3 hash algorithm
+-- will be sign and decrypt mode when private key set.
+local sm2, _ = resty_sm2.new({
+    private_key = prvkey,
+    public_key = pubkey,
+    algorithm = "sm3",
+    id = "toruneko@outlook.com"
+})
+sm2:sign(data)
+sm2:decrypt(data)
+
+-- will be verify and encrypt mode when private key not key
+local sm2, _ = resty_sm2.new({
+    public_key = pubkey,
+    algorithm = "sm3",
+    id = "toruneko@outlook.com"
+})
+sm2:verify(data)
+sm2:encrypt(data)
+```
+
+#### RSA
+```lua
+local resty_rsa = require "resty.rsa"
+local pubkey, prvkey = resty_rsa.generate_key(2048)
+
+-- will be sign and decrypt mode when only private key set.
+local rsa, _ = resty_rsa.new({
+    private_key = prvkey,
+    algorithm = "sha1",
+    padding = resty_rsa.PADDING.RSA_PKCS1_PADDING
+})
+rsa:sign(data)
+rsa:decrypt(data)
+
+-- will be verify and encrypt mode when only public key set.
+local rsa, _ = resty_rsa.new({
+    public_key = pubkey,
+    algorithm = "sha1",
+    padding = resty_rsa.PADDING.RSA_PKCS1_PADDING
+})
+rsa:verify(data)
+rsa:encrypt(data)
+```
