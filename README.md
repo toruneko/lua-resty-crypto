@@ -64,7 +64,6 @@ ngx.say(aes:decrypt(enc_data))
 
 `hash`: `md5`, `sm3`, `sha1`, `sha224`, `sha256`, `sha384`, `sha512`
 
-OR
 ```lua
 local resty_digest = require "resty.digest"
 local hmac = resty_digest.new("sha1", "secret")
