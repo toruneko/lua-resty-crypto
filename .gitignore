@@ -1,2 +1,4 @@
 t/servroot
 .idea/
+lua-resty-crypto-*.tar.gz
+lua-resty-crypto-*/
