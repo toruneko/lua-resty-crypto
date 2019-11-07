@@ -71,6 +71,10 @@ function _M.KEY_new_by_curve_name(nid)
     return eckey
 end
 
+function _M.KEY_free(eckey)
+    ffi_gc(eckey, C.EC_KEY_free)
+end
+
 function _M.KEY_generate_key(eckey)
     if C.EC_KEY_generate_key(eckey) == 1 then
         return C.EC_KEY_check_key(eckey)

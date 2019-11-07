@@ -30,17 +30,29 @@ local mt = { __index = _M }
 
 ffi.cdef [[
 //cipher Functions
-const EVP_CIPHER *EVP_des_ede(void);
 const EVP_CIPHER *EVP_des_cbc(void);
+const EVP_CIPHER *EVP_des_cfb(void);
+const EVP_CIPHER *EVP_des_ecb(void);
+const EVP_CIPHER *EVP_des_ofb(void);
+const EVP_CIPHER *EVP_des_ede(void);
+const EVP_CIPHER *EVP_des_ede_cbc(void);
+const EVP_CIPHER *EVP_des_ede_cfb(void);
+const EVP_CIPHER *EVP_des_ede_ofb(void);
+const EVP_CIPHER *EVP_des_ede3(void);
 const EVP_CIPHER *EVP_des_ede3_cbc(void);
+const EVP_CIPHER *EVP_des_ede3_cfb(void);
+const EVP_CIPHER *EVP_des_ede3_ofb(void);
 
 //CMS Functions
 typedef struct CMS_ContentInfo_st CMS_ContentInfo;
 CMS_ContentInfo *CMS_ContentInfo_new();
 void *CMS_ContentInfo_free(CMS_ContentInfo *cms);
+
 int i2d_CMS_ContentInfo(CMS_ContentInfo *a, unsigned char **pp);
 CMS_ContentInfo *d2i_CMS_ContentInfo(CMS_ContentInfo **a, unsigned char **pp,
                                      long length);
+
+int PEM_write_bio_CMS(BIO *bp, CMS_ContentInfo *a);
 CMS_ContentInfo *PEM_read_bio_CMS(BIO *bp, CMS_ContentInfo **a, pem_password_cb *cb, void *u);
 
 CMS_ContentInfo *CMS_sign(X509 *signcert, EVP_PKEY *pkey,
@@ -53,6 +65,9 @@ int CMS_verify(CMS_ContentInfo *cms, struct stack_st_X509 *certs,
 int CMS_decrypt(CMS_ContentInfo *cms, EVP_PKEY *pkey, X509 *cert,
                 BIO *dcont, BIO *out, unsigned int flags);
 ]]
+
+local unsigned_char_ptr_ptr = ffi.typeof("unsigned char*[?]")
+local unsigned_char_ptr = ffi.typeof("unsigned char*")
 
 function _M.new(opts)
     local cms = {}
@@ -118,7 +133,7 @@ function _M.new(opts)
 end
 
 function _M.i2d_CMS_ContentInfo(self, cms)
-    local str = ffi_new("unsigned char*[1]")
+    local str = ffi_new(unsigned_char_ptr_ptr, 1)
     local str_len = C.i2d_CMS_ContentInfo(cms, str)
     if str_len == 0 then
         return nil, ERR.get_error()
@@ -128,8 +143,8 @@ function _M.i2d_CMS_ContentInfo(self, cms)
 end
 
 function _M.d2i_CMS_ContentInfo(self, data)
-    local enc_data = ffi_new("unsigned char*[1]")
-    enc_data[0] = ffi_cast("unsigned char*", data)
+    local enc_data = ffi_new(unsigned_char_ptr_ptr, 1)
+    enc_data[0] = ffi_cast(unsigned_char_ptr, data)
     local cms = C.d2i_CMS_ContentInfo(ffi_null, enc_data, #data)
     if cms == ffi_null then
         return nil, ERR.get_error()
@@ -137,6 +152,21 @@ function _M.d2i_CMS_ContentInfo(self, data)
     ffi_gc(cms, C.CMS_ContentInfo_free)
 
     return cms
+end
+
+function _M.PEM_write_CMS(self, cms)
+    local data_out, err = BIO.new()
+    if not data_out then
+        return nil, err
+    end
+    if C.PEM_write_bio_CMS(data_out, cms) ~= 1 then
+        return nil, ERR.get_error()
+    end
+    local data, err = BIO.read(data_out)
+    if not data then
+        return nil, err
+    end
+    return data
 end
 
 function _M.PEM_read_CMS(self, data, pass)
@@ -203,7 +233,7 @@ function _M.sign(self, data)
         return nil, err
     end
 
-    local signed, err = self:i2d_CMS_ContentInfo(cms)
+    local signed, err = self:PEM_write_CMS(cms)
     if not signed then
         return nil, err
     end
@@ -226,7 +256,7 @@ function _M.encrypt(self, data)
         return nil, err
     end
 
-    local encryped, err = self:i2d_CMS_ContentInfo(cms)
+    local encryped, err = self:PEM_write_CMS(cms)
     if not encryped then
         return nil, err
     end
@@ -234,12 +264,12 @@ function _M.encrypt(self, data)
     return encryped
 end
 
-function _M.verify(self, data)
+function _M.verify(self, data, pass)
     if not data then
         return nil, "no cihper data"
     end
 
-    local cms, err = self:d2i_CMS_ContentInfo(data)
+    local cms, err = self:PEM_read_CMS(data, pass)
     if not cms then
         return nil, err
     end
@@ -257,12 +287,12 @@ function _M.verify(self, data)
     return verified
 end
 
-function _M.decrypt(self, data)
+function _M.decrypt(self, data, pass)
     if not data then
         return nil, "no chiper data"
     end
 
-    local cms, err = self:d2i_CMS_ContentInfo(data)
+    local cms, err = self:PEM_read_CMS(data, pass)
     if not cms then
         return nil, err
     end

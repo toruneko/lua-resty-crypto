@@ -2,6 +2,7 @@
 
 local EC = require "resty.crypto.ec"
 local EVP = require "resty.crypto.evp"
+local PEM = require "resty.crypto.pem"
 local ERR = require "resty.crypto.error"
 
 local ffi = require "ffi"
@@ -26,7 +27,31 @@ local EVP_PKEY_SM2 = NID_SM2
 local EVP_PKEY_ALG_CTRL = 0x1000
 local EVP_PKEY_CTRL_SET1_ID = EVP_PKEY_ALG_CTRL + 11
 
-function _M.new(opts)
+local function read_private_key(private_key, private_pass, pemformat)
+    if not pemformat then
+        return private_key
+    end
+    local prv_eckey = PEM.PEM_read_bio_ECPrivateKey(private_key, private_pass)
+    local key, err = EC.KEY_get0_private_key(prv_eckey)
+    if not key then
+        return nil, err
+    end
+    return key
+end
+
+local function read_public_key(public_key, public_pass, pemformat)
+    if not pemformat then
+        return public_key
+    end
+    local pub_eckey = PEM.read_bio_EC_PUBKEY(public_key, public_pass)
+    local key, err = EC.KEY_get0_public_key(pub_eckey)
+    if not key then
+        return nil, err
+    end
+    return key
+end
+
+function _M.new(opts, pemformat)
     local eckey, err = EC.KEY_new_by_curve_name(NID_SM2)
     if not eckey then
         return nil, err
@@ -34,13 +59,21 @@ function _M.new(opts)
 
     local is_pub = true
     if opts.private_key then
-        if EC.KEY_set_private_key(eckey, opts.private_key) == 0 then
+        local private_key, err = read_private_key(opts.private_key, opts.private_pass, pemformat)
+        if not private_key then
+            return nil, err
+        end
+        if EC.KEY_set_private_key(eckey, private_key) == 0 then
             return nil, ERR.get_error()
         end
         is_pub = false
     end
 
-    if EC.KEY_set_public_key(eckey, opts.public_key) == 0 then
+    local public_key, err = read_public_key(opts.public_key, opts.public_pass, pemformat)
+    if not public_key then
+        return nil, err
+    end
+    if EC.KEY_set_public_key(eckey, public_key) == 0 then
         return nil, ERR.get_error()
     end
 
@@ -83,6 +116,28 @@ function _M.new(opts)
         is_pub = is_pub,
         md = md,
     }, mt)
+end
+
+function _M.generate_eckey()
+    local eckey, err = EC.KEY_new_by_curve_name(NID_SM2)
+    if not eckey then
+        return nil, nil, err
+    end
+    if EC.KEY_generate_key(eckey) == 0 then
+        return nil, nil, ERR.get_error()
+    end
+
+    local public_key, err = PEM.write_bio_EC_PUBKEY(eckey)
+    if not public_key then
+        return nil, nil, err
+    end
+
+    local private_key, err = PEM.write_bio_ECPrivateKey(eckey)
+    if not private_key then
+        return nil, nil, err
+    end
+
+    return public_key, private_key
 end
 
 function _M.generate_key()
