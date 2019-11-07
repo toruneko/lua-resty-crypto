@@ -44,9 +44,6 @@ int EVP_DecryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *outm, int *outl);
 int EVP_BytesToKey(const EVP_CIPHER *type,const EVP_MD *md,
         const unsigned char *salt, const unsigned char *data, int datal,
         int count, unsigned char *key,unsigned char *iv);
-
-typedef unsigned char u_char;
-u_char * ngx_hex_dump(u_char *dst, const u_char *src, size_t len);
 ]]
 
 local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
