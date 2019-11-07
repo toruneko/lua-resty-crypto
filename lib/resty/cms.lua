@@ -9,7 +9,10 @@ local STACK = require "resty.crypto.stack"
 
 local bit = require "bit"
 local ffi = require "ffi"
+local ffi_new = ffi.new
+local ffi_cast = ffi.cast
 local ffi_gc = ffi.gc
+local ffi_str = ffi.string
 local ffi_null = ffi.null
 local C = ffi.C
 local bor = bit.bor
@@ -45,6 +48,10 @@ typedef struct CMS_ContentInfo_st CMS_ContentInfo;
 CMS_ContentInfo *CMS_ContentInfo_new();
 void *CMS_ContentInfo_free(CMS_ContentInfo *cms);
 
+int i2d_CMS_ContentInfo(CMS_ContentInfo *a, unsigned char **pp);
+CMS_ContentInfo *d2i_CMS_ContentInfo(CMS_ContentInfo **a, unsigned char **pp,
+                                     long length);
+
 int PEM_write_bio_CMS(BIO *bp, CMS_ContentInfo *a);
 CMS_ContentInfo *PEM_read_bio_CMS(BIO *bp, CMS_ContentInfo **a, pem_password_cb *cb, void *u);
 
@@ -58,6 +65,9 @@ int CMS_verify(CMS_ContentInfo *cms, struct stack_st_X509 *certs,
 int CMS_decrypt(CMS_ContentInfo *cms, EVP_PKEY *pkey, X509 *cert,
                 BIO *dcont, BIO *out, unsigned int flags);
 ]]
+
+local unsigned_char_ptr_ptr = ffi.typeof("unsigned char*[?]")
+local unsigned_char_ptr = ffi.typeof("unsigned char*")
 
 function _M.new(opts)
     local cms = {}
@@ -120,6 +130,28 @@ function _M.new(opts)
     end
 
     return setmetatable(cms, mt)
+end
+
+function _M.i2d_CMS_ContentInfo(self, cms)
+    local str = ffi_new(unsigned_char_ptr_ptr, 1)
+    local str_len = C.i2d_CMS_ContentInfo(cms, str)
+    if str_len == 0 then
+        return nil, ERR.get_error()
+    end
+
+    return ffi_str(str[0], str_len)
+end
+
+function _M.d2i_CMS_ContentInfo(self, data)
+    local enc_data = ffi_new(unsigned_char_ptr_ptr, 1)
+    enc_data[0] = ffi_cast(unsigned_char_ptr, data)
+    local cms = C.d2i_CMS_ContentInfo(ffi_null, enc_data, #data)
+    if cms == ffi_null then
+        return nil, ERR.get_error()
+    end
+    ffi_gc(cms, C.CMS_ContentInfo_free)
+
+    return cms
 end
 
 function _M.PEM_write_CMS(self, cms)
