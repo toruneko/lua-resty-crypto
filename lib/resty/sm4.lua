@@ -70,7 +70,6 @@ void CRYPTO_ctr128_encrypt(const unsigned char *in, unsigned char *out,
 // openssl 1.1.1
 const EVP_CIPHER *EVP_sm4_cbc(void);
 const EVP_CIPHER *EVP_sm4_ecb(void);
-const EVP_CIPHER *EVP_sm4_cfb(void);
 const EVP_CIPHER *EVP_sm4_cfb128(void);
 const EVP_CIPHER *EVP_sm4_ofb(void);
 const EVP_CIPHER *EVP_sm4_ctr(void);
@@ -371,20 +370,20 @@ end
 -- openssl 1.1.1
 local support = pcall(function() C.EVP_sm4_ecb() end)
 local ciphers = {
-    ecb128 = support and C.EVP_sm4_ecb() or defs_cipher(1133, 16, 16, 16, 0x1, sm4_ecb_cipher),
-    cbc128 = support and C.EVP_sm4_cbc() or defs_cipher(1134, 16, 16, 16, 0x2, sm4_cbc_cipher),
-    ofb128 = support and C.EVP_sm4_ofb() or defs_cipher(1135, 16, 16, 16, 0x4, sm4_ofb128_cipher),
-    cfb128 = support and C.EVP_sm4_cfb128() or defs_cipher(1137, 16, 16, 16, 0x3, sm4_cfb128_cipher),
-    ctr128 = support and C.EVP_sm4_ctr() or defs_cipher(1139, 1, 16, 16, 0x5, sm4_ctr_cipher)
+    ecb = support and C.EVP_sm4_ecb() or defs_cipher(1133, 16, 16, 16, 0x1, sm4_ecb_cipher),
+    cbc = support and C.EVP_sm4_cbc() or defs_cipher(1134, 16, 16, 16, 0x2, sm4_cbc_cipher),
+    ofb = support and C.EVP_sm4_ofb() or defs_cipher(1135, 16, 16, 16, 0x4, sm4_ofb128_cipher),
+    cfb = support and C.EVP_sm4_cfb128() or defs_cipher(1137, 16, 16, 16, 0x3, sm4_cfb128_cipher),
+    ctr = support and C.EVP_sm4_ctr() or defs_cipher(1139, 1, 16, 16, 0x5, sm4_ctr_cipher)
 }
 
-function _M.cipher(_cipher, _size)
+function _M.cipher(_cipher)
     local _cipher = _cipher or "ecb"
-    local _size = _size or 128
-    if not ciphers[_cipher .. _size] then
+    if ciphers[_cipher] then
+        return { size = 128, cipher = _cipher, method = ciphers[_cipher] }
+    else
         return nil
     end
-    return { size = _size, cipher = _cipher, method = ciphers[_cipher .. _size] }
 end
 
 function _M.new(self, key)

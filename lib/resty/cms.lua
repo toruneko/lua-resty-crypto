@@ -6,6 +6,7 @@ local X509 = require "resty.crypto.x509"
 local PEM = require "resty.crypto.pem"
 local ERR = require "resty.crypto.error"
 local STACK = require "resty.crypto.stack"
+local AES = require "resty.aes"
 
 local bit = require "bit"
 local ffi = require "ffi"
@@ -29,20 +30,6 @@ local _M = { _VERSION = '0.0.2' }
 local mt = { __index = _M }
 
 ffi.cdef [[
-//cipher Functions
-const EVP_CIPHER *EVP_des_cbc(void);
-const EVP_CIPHER *EVP_des_cfb(void);
-const EVP_CIPHER *EVP_des_ecb(void);
-const EVP_CIPHER *EVP_des_ofb(void);
-const EVP_CIPHER *EVP_des_ede(void);
-const EVP_CIPHER *EVP_des_ede_cbc(void);
-const EVP_CIPHER *EVP_des_ede_cfb(void);
-const EVP_CIPHER *EVP_des_ede_ofb(void);
-const EVP_CIPHER *EVP_des_ede3(void);
-const EVP_CIPHER *EVP_des_ede3_cbc(void);
-const EVP_CIPHER *EVP_des_ede3_cfb(void);
-const EVP_CIPHER *EVP_des_ede3_ofb(void);
-
 //CMS Functions
 typedef struct CMS_ContentInfo_st CMS_ContentInfo;
 CMS_ContentInfo *CMS_ContentInfo_new();
@@ -119,15 +106,7 @@ function _M.new(opts)
         cms.store = store
     end
 
-    if opts.cipher and opts.method then
-        local func = "EVP_" .. opts.cipher .. "_" .. opts.method
-        if not C[func] then
-            return nil, "no cipher on method"
-        end
-        cms.cipher = C[func]()
-    else
-        cms.cipher = C.EVP_des_ede3_cbc()
-    end
+    cms.cipher = opts.cipher or AES.cipher()
 
     return setmetatable(cms, mt)
 end
