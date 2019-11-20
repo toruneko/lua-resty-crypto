@@ -8,23 +8,14 @@ local str = require "resty.utils.string"
 local ffi = require "ffi"
 local ffi_new = ffi.new
 local ffi_str = ffi.string
-local ffi_copy = ffi.copy
+local ffi_null = ffi.null
 local C = ffi.C
 local setmetatable = setmetatable
-local type = type
 
 local _M = { _VERSION = '0.0.1' }
 local mt = { __index = _M }
 
 ffi.cdef [[
-const EVP_MD *EVP_md5(void);
-const EVP_MD *EVP_sha(void);
-const EVP_MD *EVP_sha1(void);
-const EVP_MD *EVP_sha224(void);
-const EVP_MD *EVP_sha256(void);
-const EVP_MD *EVP_sha384(void);
-const EVP_MD *EVP_sha512(void);
-
 int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx,const EVP_CIPHER *cipher,
         ENGINE *impl, unsigned char *key, const unsigned char *iv);
 
@@ -49,17 +40,6 @@ int EVP_BytesToKey(const EVP_CIPHER *type,const EVP_MD *md,
 local unsigned_char_ptr = ffi.typeof("unsigned char[?]")
 local int_ptr = ffi.typeof("int[?]")
 
-local hash
-hash = {
-    md5 = C.EVP_md5(),
-    sha1 = C.EVP_sha1(),
-    sha224 = C.EVP_sha224(),
-    sha256 = C.EVP_sha256(),
-    sha384 = C.EVP_sha384(),
-    sha512 = C.EVP_sha512()
-}
-_M.hash = hash
-
 function _M.new(key, salt, _cipher, _hash, hash_rounds)
     local encrypt_ctx, err = EVP.CIPHER_CTX_new()
     if not encrypt_ctx then
@@ -75,51 +55,25 @@ function _M.new(key, salt, _cipher, _hash, hash_rounds)
         return nil, "no cipher"
     end
 
-    local _hash = _hash or hash.md5
+    local _hash = EVP.get_digestbyname(_hash or "md5")
+    if _hash == ffi_null then
+        _hash = EVP.get_digestbyname("md5")
+    end
     local hash_rounds = hash_rounds or 1
     local _cipherLength = _cipher.size / 8
     local gen_key = ffi_new(unsigned_char_ptr, _cipherLength)
     local gen_iv = ffi_new(unsigned_char_ptr, _cipherLength)
 
-    if type(_hash) == "table" then
-        if not _hash.iv or #_hash.iv ~= 16 then
-            return nil, "bad iv"
-        end
-
-        if _hash.method then
-            local tmp_key = _hash.method(key)
-
-            if #tmp_key ~= _cipherLength then
-                return nil, "bad key length"
-            end
-
-            ffi_copy(gen_key, tmp_key, _cipherLength)
-
-        elseif #key ~= _cipherLength then
-            return nil, "bad key length"
-
-        else
-            ffi_copy(gen_key, key, _cipherLength)
-        end
-
-        ffi_copy(gen_iv, _hash.iv, 16)
-
-    else
-        if salt and #salt ~= 8 then
-            return nil, "salt must be 8 characters or nil"
-        end
-
-        if C.EVP_BytesToKey(_cipher.method, _hash, salt, key, #key,
-            hash_rounds, gen_key, gen_iv)
-                ~= _cipherLength then
-            return nil, ERR.get_error()
-        end
+    if salt and #salt ~= 8 then
+        return nil, "salt must be 8 characters or nil"
     end
 
-    if C.EVP_EncryptInit_ex(encrypt_ctx, _cipher.method, nil,
-        gen_key, gen_iv) == 0 or
-            C.EVP_DecryptInit_ex(decrypt_ctx, _cipher.method, nil,
-                gen_key, gen_iv) == 0 then
+    if C.EVP_BytesToKey(_cipher.method, _hash, salt, key, #key, hash_rounds, gen_key, gen_iv) ~= _cipherLength then
+        return nil, ERR.get_error()
+    end
+
+    if C.EVP_EncryptInit_ex(encrypt_ctx, _cipher.method, nil, gen_key, gen_iv) == 0
+            or C.EVP_DecryptInit_ex(decrypt_ctx, _cipher.method, nil, gen_key, gen_iv) == 0 then
         return nil, ERR.get_error()
     end
 
