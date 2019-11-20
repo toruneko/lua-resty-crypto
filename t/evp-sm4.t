@@ -118,7 +118,7 @@ abc
         content_by_lua_block {
             local resty_crypto = require "resty.crypto"
             local resty_sm4 = require "resty.sm4"
-            local cipher = resty_sm4.cipher("ctr", 128)
+            local cipher = resty_sm4.cipher("ctr")
             local sm4, err = resty_crypto.new("secret", nil, cipher)
             if err then
                 ngx.log(ngx.ERR, err)
@@ -149,7 +149,7 @@ abc
         content_by_lua_block {
             local resty_crypto = require "resty.crypto"
             local resty_sm4 = require "resty.sm4"
-            local cipher = resty_sm4.cipher("ecb", 128)
+            local cipher = resty_sm4.cipher("ecb")
             local sm4, err = resty_crypto.new("secret", nil, cipher)
             if err then
                 ngx.log(ngx.ERR, err)
