@@ -229,7 +229,7 @@ local function sm4_init_key(ctx, key, iv, enc)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
     local ks = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
     local rk = SMS4_Init(key)
-    ffi_copy(ks.ks.rk, rk, ffi_sizeof(uint32_t_ptr, 32))
+    ffi_copy(ks.ks.rk, rk, ffi_sizeof(rk))
     return 1
 end
 
