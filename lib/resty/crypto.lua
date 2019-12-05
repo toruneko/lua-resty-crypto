@@ -12,7 +12,7 @@ local ffi_null = ffi.null
 local C = ffi.C
 local setmetatable = setmetatable
 
-local _M = { _VERSION = '0.0.2' }
+local _M = { _VERSION = '0.0.3' }
 local mt = { __index = _M }
 
 ffi.cdef [[
