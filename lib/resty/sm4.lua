@@ -19,9 +19,10 @@ local C = ffi.C
 local tonumber = tonumber
 local setmetatable = setmetatable
 
-local _M = { _VERSION = '0.0.2' }
+local _M = { _VERSION = '0.0.3' }
 local mt = { __index = _M }
 
+local BLOCK_SIZE = 16
 local EVP_MAXCHUNK = lshift(1, (64 * 8 - 2))
 
 ffi.cdef [[
@@ -135,7 +136,7 @@ local Sbox = ffi_new("const uint32_t[256]", {
 
 -- 非线性变换τ
 local function P(a)
-    return bxor(lshift(Sbox[rshift(a, 24)], 24),
+    return bor(lshift(Sbox[rshift(a, 24)], 24),
         lshift(Sbox[band(rshift(a, 16), 0xFF)], 16),
         lshift(Sbox[band(rshift(a, 8), 0xFF)], 8),
         Sbox[band(a, 0xFF)])
@@ -228,7 +229,7 @@ local function sm4_init_key(ctx, key, iv, enc)
     local cipher_data = C.EVP_CIPHER_CTX_get_cipher_data(ctx)
     local ks = ffi_cast(EVP_SM4_KEY_ptr, cipher_data)
     local rk = SMS4_Init(key)
-    ffi_copy(ks.ks.rk, rk, 32)
+    ffi_copy(ks.ks.rk, rk, ffi_sizeof(uint32_t_ptr, 32))
     return 1
 end
 
@@ -387,13 +388,13 @@ function _M.cipher(_cipher)
 end
 
 function _M.new(self, key)
-    local rk = SMS4_Init(ffi_new(unsigned_char_ptr, 16, key))
+    local rk = SMS4_Init(ffi_new(unsigned_char_ptr, BLOCK_SIZE, key))
     return setmetatable({ rk = rk }, mt)
 end
 
 function _M.encrypt(self, block)
-    local _in = ffi_new(unsigned_char_ptr, 16, block)
-    local _out = ffi_new(unsigned_char_ptr, 16)
+    local _in = ffi_new(unsigned_char_ptr, BLOCK_SIZE, block)
+    local _out = ffi_new(unsigned_char_ptr, BLOCK_SIZE)
 
     SMS4_Update_block(self.rk, _in, _out, true)
 
@@ -401,8 +402,8 @@ function _M.encrypt(self, block)
 end
 
 function _M.decrypt(self, block)
-    local _in = ffi_new(unsigned_char_ptr, 16, block)
-    local _out = ffi_new(unsigned_char_ptr, 16)
+    local _in = ffi_new(unsigned_char_ptr, BLOCK_SIZE, block)
+    local _out = ffi_new(unsigned_char_ptr, BLOCK_SIZE)
 
     SMS4_Update_block(self.rk, _in, _out, false)
 
