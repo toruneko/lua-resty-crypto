@@ -19,7 +19,7 @@ local C = ffi.C
 local tonumber = tonumber
 local setmetatable = setmetatable
 
-local _M = { _VERSION = '0.0.3' }
+local _M = { _VERSION = '0.0.4' }
 local mt = { __index = _M }
 
 local BLOCK_SIZE = 16
