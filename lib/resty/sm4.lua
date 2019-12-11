@@ -233,6 +233,9 @@ local function sm4_init_key(ctx, key, iv, enc)
     return 1
 end
 
+local sm4_encrypt_block_f = ffi_cast(block128_f, sm4_encrypt)
+local sm4_decrypt_block_f = ffi_cast(block128_f, sm4_decrypt)
+
 local function sm4_ecb_encrypt(_in, _out, key, enc)
     if enc == 1 then
         sm4_encrypt(_in, _out, key)
@@ -243,18 +246,18 @@ end
 
 local function sm4_cbc_encrypt(_in, _out, len, key, ivec, enc)
     if enc == 1 then
-        C.CRYPTO_cbc128_encrypt(_in, _out, len, key, ivec, ffi_cast(block128_f, sm4_encrypt))
+        C.CRYPTO_cbc128_encrypt(_in, _out, len, key, ivec, sm4_encrypt_block_f)
     else
-        C.CRYPTO_cbc128_decrypt(_in, _out, len, key, ivec, ffi_cast(block128_f, sm4_decrypt))
+        C.CRYPTO_cbc128_decrypt(_in, _out, len, key, ivec, sm4_decrypt_block_f)
     end
 end
 
 local function sm4_cfb128_encrypt(_in, _out, len, key, ivec, num, enc)
-    C.CRYPTO_cfb128_encrypt(_in, _out, len, key, ivec, num, enc, ffi_cast(block128_f, sm4_encrypt))
+    C.CRYPTO_cfb128_encrypt(_in, _out, len, key, ivec, num, enc, sm4_encrypt_block_f)
 end
 
 local function sm4_ofb128_encrypt(_in, _out, len, key, ivec, num)
-    C.CRYPTO_ofb128_encrypt(_in, _out, len, key, ivec, num, ffi_cast(block128_f, sm4_encrypt))
+    C.CRYPTO_ofb128_encrypt(_in, _out, len, key, ivec, num, sm4_encrypt_block_f)
 end
 
 local function sm4_ecb_cipher(ctx, _out, _in, inl)
@@ -343,7 +346,7 @@ local function sm4_ctr_cipher(ctx, _out, _in, inl)
     C.CRYPTO_ctr128_encrypt(_in, _out, inl, dat.ks,
         C.EVP_CIPHER_CTX_iv_noconst(ctx),
         C.EVP_CIPHER_CTX_buf_noconst(ctx), num,
-        ffi_cast(block128_f, sm4_encrypt))
+        sm4_encrypt_block_f)
 
     C.EVP_CIPHER_CTX_set_num(ctx, num[0])
 
