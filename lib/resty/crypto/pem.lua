@@ -115,7 +115,7 @@ function _M.write_RSAPrivateKey(rsa)
 end
 
 function _M.read_RSAPrivateKey(key, pass)
-    return PEM_read_Key(C.PEM_read_bio_RSAPrivateKey, key, pass)
+    return PEM_read_Key(C.PEM_read_bio_RSAPrivateKey, key, pass, RSA.free)
 end
 
 function _M.write_RSAPublicKey(rsa)
