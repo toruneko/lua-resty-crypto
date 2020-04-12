@@ -29,6 +29,9 @@ end
 
 local function X509_new()
     local x509 = C.X509_new()
+    if x509 == ffi_null then
+        return nil, ERR.get_error()
+    end
     X509_free(x509)
     return x509
 end
