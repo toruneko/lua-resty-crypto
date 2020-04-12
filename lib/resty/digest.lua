@@ -61,7 +61,10 @@ function _M.new(name, key)
         return setmetatable({ md = HMAC.new(key, md) }, mt)
     end
 
-    local md_ctx = EVP.MD_CTX_new()
+    local md_ctx, err = EVP.MD_CTX_new()
+    if not md_ctx then
+        return nil, err
+    end
 
     if EVP.DigestInit(md_ctx, md) ~= 1 then
         return nil, ERR.get_error()
