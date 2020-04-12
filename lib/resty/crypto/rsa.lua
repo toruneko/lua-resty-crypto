@@ -35,8 +35,10 @@ function _M.free(rsa)
 end
 
 function _M.generate_key(rsa, bits)
-    local bn = BN.new()
-
+    local bn, err = BN.new()
+    if not bn then
+        return false, err
+    end
     -- Set public exponent to 65537
     if BN.set_word(bn, 65537) ~= 1 then
         return false, ERR.get_error()
