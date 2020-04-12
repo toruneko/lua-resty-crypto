@@ -180,7 +180,10 @@ function _M.sign(self, str)
     if self.is_pub then
         return nil, "not inited for sign"
     end
-    local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
+    local md_ctx, err = EVP.MD_CTX_new(self.pkey_ctx)
+    if not md_ctx then
+        return nil, err
+    end
 
     if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
         return nil, ERR.get_error()
@@ -194,7 +197,10 @@ function _M.verify(self, str, sig)
         return nil, "not inited for verify"
     end
 
-    local md_ctx = EVP.MD_CTX_new(self.pkey_ctx)
+    local md_ctx, err = EVP.MD_CTX_new(self.pkey_ctx)
+    if not md_ctx then
+        return nil, err
+    end
 
     if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
         return nil, ERR.get_error()

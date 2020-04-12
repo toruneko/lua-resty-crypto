@@ -129,6 +129,9 @@ end
 
 function _M.MD_CTX_new(pkey_ctx)
     local md_ctx = evp_md_ctx_new()
+    if md_ctx == ffi_null then
+        return nil, "no memory"
+    end
     ffi_gc(md_ctx, evp_md_ctx_free)
     if pkey_ctx then
         C.EVP_MD_CTX_set_pkey_ctx(md_ctx, pkey_ctx)
@@ -146,6 +149,9 @@ end
 
 function _M.PKEY_new()
     local pkey = C.EVP_PKEY_new()
+    if pkey == ffi_null then
+        return nil, "no memory"
+    end
     ffi_gc(pkey, C.EVP_PKEY_free)
     return pkey
 end
