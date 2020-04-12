@@ -189,14 +189,20 @@ function _M.sign(self, str)
     end
 
     if VERSION.patch_version() >= 256 then
-        local md_ctx = EVP.MD_CTX_new(self._decrypt_ctx)
+        local md_ctx, err = EVP.MD_CTX_new(self._decrypt_ctx)
+        if not md_ctx then
+            return nil, err
+        end
         if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
             return nil, ERR.get_error()
         end
         return EVP.DigestSign(md_ctx, str)
     end
 
-    local md_ctx = EVP.MD_CTX_new()
+    local md_ctx, err = EVP.MD_CTX_new()
+    if not md_ctx then
+        return nil, err
+    end
 
     if EVP.DigestInit(md_ctx, self.md) <= 0 then
         return nil, ERR.get_error()
@@ -215,14 +221,20 @@ function _M.verify(self, str, sig)
     end
 
     if VERSION.patch_version() >= 256 then
-        local md_ctx = EVP.MD_CTX_new(self._encrypt_ctx)
+        local md_ctx, err = EVP.MD_CTX_new(self._encrypt_ctx)
+        if not md_ctx then
+            return nil, err
+        end
         if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
             return nil, ERR.get_error()
         end
         return EVP.DigestVerify(md_ctx, str, sig)
     end
 
-    local md_ctx = EVP.MD_CTX_new()
+    local md_ctx, err = EVP.MD_CTX_new()
+    if not md_ctx then
+        return nil, err
+    end
 
     if EVP.DigestInit(md_ctx, self.md) <= 0 then
         return nil, ERR.get_error()
