@@ -6,6 +6,7 @@ local str = require "resty.utils.string"
 local ffi = require "ffi"
 local ffi_new = ffi.new
 local ffi_str = ffi.string
+local ffi_null = ffi.null
 local ffi_gc = ffi.gc
 local C = ffi.C
 local setmetatable = setmetatable
@@ -37,6 +38,9 @@ end
 
 function _M.new(key, _hash)
     local ctx = C.HMAC_CTX_new()
+    if ctx == ffi_null then
+        return nil
+    end
     ffi_gc(ctx, C.HMAC_CTX_free)
 
     if C.HMAC_Init_ex(ctx, key, #key, _hash, nil) == 0 then
