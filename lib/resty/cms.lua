@@ -172,7 +172,10 @@ function _M.CMS_sign(self, data_in, flags)
 end
 
 function _M.CMS_encrypt(self, data_in, flags)
-    local certs = STACK.X509_new({ self.cert })
+    local certs, err = STACK.X509_new({ self.cert })
+    if not certs then
+        return nil, err
+    end
     local cms = C.CMS_encrypt(certs, data_in, self.cipher, flags)
     if cms == ffi_null then
         return nil, ERR.get_error()
@@ -182,7 +185,10 @@ end
 
 function _M.CMS_verify(self, cms, flags)
     local out = BIO.new()
-    local certs = STACK.X509_new({ self.cert })
+    local certs, err = STACK.X509_new({ self.cert })
+    if not certs then
+        return nil, err
+    end
     if C.CMS_verify(cms, certs, self.store, ffi_null, out, flags) == 0 then
         return nil, ERR.get_error()
     end

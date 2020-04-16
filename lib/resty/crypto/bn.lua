@@ -1,9 +1,12 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
+local ERR = require "resty.crypto.error"
+
 local ffi = require "ffi"
 local ffi_gc = ffi.gc
 local ffi_new = ffi.new
 local ffi_str = ffi.string
+local ffi_null = ffi.null
 
 local C = ffi.C
 
@@ -31,6 +34,9 @@ end
 
 local function BN_new()
     local bn = C.BN_new()
+    if bn == ffi_null then
+        return nil, ERR.get_error()
+    end
     BN_free(bn)
     return bn
 end
@@ -52,12 +58,16 @@ function _M.bn2hex(bn)
 end
 
 function _M.hex2bn(hex)
+    local bn, err = BN_new()
+    if not bn then
+        return nil, err
+    end
     local bignum = ffi_new(BIGNUM_ptr, 1)
-    bignum[0] = BN_new()
+    bignum[0] = bn
     if C.BN_hex2bn(bignum, ffi_new(const_char_ptr, hex)) > 0 then
         return bignum[0]
     end
-    return nil
+    return nil, ERR.get_error()
 end
 
 return _M

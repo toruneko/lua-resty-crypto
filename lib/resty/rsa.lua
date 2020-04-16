@@ -124,7 +124,10 @@ function _M.new(_, opts)
 end
 
 function _M.generate_key(bits, pkcs8)
-    local rsa = RSA.new()
+    local rsa, err = RSA.new()
+    if not rsa then
+        return nil, nil, err
+    end
     local ok, err = RSA.generate_key(rsa, bits)
     if not ok then
         return nil, nil, err

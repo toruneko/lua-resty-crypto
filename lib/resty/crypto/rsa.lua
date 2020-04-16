@@ -5,6 +5,7 @@ local ERR = require "resty.crypto.error"
 
 local ffi = require "ffi"
 local ffi_gc = ffi.gc
+local ffi_null = ffi.null
 local C = ffi.C
 
 local _M = { _VERSION = '1.0.0' }
@@ -22,6 +23,9 @@ end
 
 local function RSA_new()
     local rsa = C.RSA_new()
+    if rsa == ffi_null then
+        return nil, ERR.get_error()
+    end
     RSA_free(rsa)
     return rsa
 end
@@ -35,8 +39,10 @@ function _M.free(rsa)
 end
 
 function _M.generate_key(rsa, bits)
-    local bn = BN.new()
-
+    local bn, err = BN.new()
+    if not bn then
+        return false, err
+    end
     -- Set public exponent to 65537
     if BN.set_word(bn, 65537) ~= 1 then
         return false, ERR.get_error()
