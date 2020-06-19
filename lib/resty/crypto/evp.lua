@@ -119,9 +119,8 @@ end
 function _M.CIPHER_CTX_new()
     local cipher_ctx = C.EVP_CIPHER_CTX_new()
     if cipher_ctx == nil then
-        return nil, "no memory"
+        return nil, ERR.get_error()
     end
-
     ffi_gc(cipher_ctx, C.EVP_CIPHER_CTX_free)
 
     return cipher_ctx
@@ -130,7 +129,7 @@ end
 function _M.MD_CTX_new(pkey_ctx)
     local md_ctx = evp_md_ctx_new()
     if md_ctx == ffi_null then
-        return nil, "no memory"
+        return nil, ERR.get_error()
     end
     ffi_gc(md_ctx, evp_md_ctx_free)
     if pkey_ctx then
@@ -150,7 +149,7 @@ end
 function _M.PKEY_new()
     local pkey = C.EVP_PKEY_new()
     if pkey == ffi_null then
-        return nil, "no memory"
+        return nil, ERR.get_error()
     end
     ffi_gc(pkey, C.EVP_PKEY_free)
     return pkey
@@ -170,11 +169,17 @@ function _M.PKEY_CTX_new(pkey)
 end
 
 function _M.PKEY_CTX_ctrl(ctx, keytype, optype, cmd, p1, p2)
-    return C.EVP_PKEY_CTX_ctrl(ctx, keytype, optype, cmd, p1, p2)
+    if C.EVP_PKEY_CTX_ctrl(ctx, keytype, optype, cmd, p1, p2) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.PKEY_encrypt_init(ctx)
-    return C.EVP_PKEY_encrypt_init(ctx)
+    if C.EVP_PKEY_encrypt_init(ctx) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.PKEY_encrypt(ctx, str)
@@ -193,7 +198,10 @@ function _M.PKEY_encrypt(ctx, str)
 end
 
 function _M.PKEY_decrypt_init(ctx)
-    return C.EVP_PKEY_decrypt_init(ctx)
+    if C.EVP_PKEY_decrypt_init(ctx) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.PKEY_decrypt(ctx, str)
@@ -211,11 +219,17 @@ function _M.PKEY_decrypt(ctx, str)
 end
 
 function _M.DigestInit(md_ctx, md)
-    return C.EVP_DigestInit_ex(md_ctx, md, ffi_null)
+    if C.EVP_DigestInit_ex(md_ctx, md, ffi_null) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.DigestUpdate(md_ctx, str)
-    return C.EVP_DigestUpdate(md_ctx, str, #str)
+    if C.EVP_DigestUpdate(md_ctx, str, #str) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.DigestFinal(md_ctx)
@@ -255,7 +269,10 @@ function _M.VerifyFinal(md_ctx, pkey, sig)
 end
 
 function _M.DigestSignInit(md_ctx, md, pkey)
-    return C.EVP_DigestSignInit(md_ctx, ffi_null, md, ffi_null, pkey)
+    if C.EVP_DigestSignInit(md_ctx, ffi_null, md, ffi_null, pkey) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.DigestSign(md_ctx, str)
@@ -272,7 +289,10 @@ function _M.DigestSign(md_ctx, str)
 end
 
 function _M.DigestVerifyInit(md_ctx, md, pkey)
-    return C.EVP_DigestVerifyInit(md_ctx, ffi_null, md, ffi_null, pkey)
+    if C.EVP_DigestVerifyInit(md_ctx, ffi_null, md, ffi_null, pkey) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.DigestVerify(md_ctx, str, sig)
