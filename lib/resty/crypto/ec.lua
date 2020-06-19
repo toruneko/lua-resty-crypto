@@ -2,6 +2,7 @@
 
 local BN = require "resty.crypto.bn"
 local ERR = require "resty.crypto.error"
+local OPENSSL = require "resty.crypto.openssl"
 
 local ffi = require "ffi"
 local ffi_gc = ffi.gc
@@ -45,6 +46,7 @@ char *EC_POINT_point2hex(const EC_GROUP *group, const EC_POINT *p,
                          point_conversion_form_t form, BN_CTX *ctx);
 EC_POINT *EC_POINT_hex2point(const EC_GROUP *group, const char *hex,
                              EC_POINT *p, BN_CTX *ctx);
+void EC_POINT_free(EC_POINT *point);
 ]]
 
 local EC_builtin_curve_ptr = ffi.typeof("EC_builtin_curve[?]")
@@ -107,12 +109,15 @@ function _M.KEY_get0_public_key(eckey)
     if point == ffi_null then
         return nil, "no private key"
     end
+    ffi_gc(point, C.EC_POINT_free)
+
     local group = C.EC_KEY_get0_group(eckey)
     if group == ffi_null then
         return nil, "no group"
     end
     local conv = C.EC_KEY_get_conv_form(eckey)
     local hex = C.EC_POINT_point2hex(group, point, conv, ffi_null)
+    OPENSSL.free(hex)
     return ffi_str(hex)
 end
 
@@ -126,6 +131,8 @@ function _M.KEY_set_public_key(eckey, pub)
     if point == ffi_null then
         return false, ERR.get_error()
     end
+    ffi_gc(point, C.EC_POINT_free)
+
     if C.EC_KEY_set_public_key(eckey, point) <= 0 then
         return false, ERR.get_error()
     end
