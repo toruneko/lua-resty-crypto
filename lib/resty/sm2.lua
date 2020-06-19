@@ -31,7 +31,10 @@ local function read_private_key(private_key, private_pass, pemformat)
     if not pemformat then
         return private_key
     end
-    local prv_eckey = PEM.PEM_read_bio_ECPrivateKey(private_key, private_pass)
+    local prv_eckey, err = PEM.PEM_read_bio_ECPrivateKey(private_key, private_pass)
+    if not prv_eckey then
+        return nil, err
+    end
     local key, err = EC.KEY_get0_private_key(prv_eckey)
     if not key then
         return nil, err
@@ -43,7 +46,10 @@ local function read_public_key(public_key, public_pass, pemformat)
     if not pemformat then
         return public_key
     end
-    local pub_eckey = PEM.read_bio_EC_PUBKEY(public_key, public_pass)
+    local pub_eckey, err = PEM.read_bio_EC_PUBKEY(public_key, public_pass)
+    if not pub_eckey then
+        return nil, err
+    end
     local key, err = EC.KEY_get0_public_key(pub_eckey)
     if not key then
         return nil, err
