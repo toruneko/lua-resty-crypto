@@ -63,8 +63,9 @@ function _M.new(opts, pemformat)
         if not private_key then
             return nil, err
         end
-        if EC.KEY_set_private_key(eckey, private_key) == 0 then
-            return nil, ERR.get_error()
+        local ok, err = EC.KEY_set_private_key(eckey, private_key)
+        if not ok then
+            return nil, err
         end
         is_pub = false
     end
@@ -73,8 +74,9 @@ function _M.new(opts, pemformat)
     if not public_key then
         return nil, err
     end
-    if EC.KEY_set_public_key(eckey, public_key) == 0 then
-        return nil, ERR.get_error()
+    local ok, err = EC.KEY_set_public_key(eckey, public_key)
+    if not ok then
+        return nil, err
     end
 
     -- EVP_PKEY
@@ -96,12 +98,16 @@ function _M.new(opts, pemformat)
     end
 
     local id = opts.id or "default sm2 ID"
-    EVP.PKEY_CTX_ctrl(pkey_ctx, -1, -1, EVP_PKEY_CTRL_SET1_ID, #id, ffi_cast(void_ptr, id))
+    local ok, err = EVP.PKEY_CTX_ctrl(pkey_ctx, -1, -1, EVP_PKEY_CTRL_SET1_ID, #id, ffi_cast(void_ptr, id))
+    if not ok then
+        return nil, err
+    end
 
     local init_func = is_pub and EVP.PKEY_encrypt_init
             or EVP.PKEY_decrypt_init
-    if init_func(pkey_ctx) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = init_func(pkey_ctx)
+    if not ok then
+        return nil, err
     end
 
     -- md_ctx init for sign or verify
@@ -123,8 +129,9 @@ function _M.generate_eckey()
     if not eckey then
         return nil, nil, err
     end
-    if EC.KEY_generate_key(eckey) == 0 then
-        return nil, nil, ERR.get_error()
+    local ok, err = EC.KEY_generate_key(eckey)
+    if not ok then
+        return nil, nil, err
     end
 
     local public_key, err = PEM.write_bio_EC_PUBKEY(eckey)
@@ -145,8 +152,9 @@ function _M.generate_key()
     if not eckey then
         return nil, nil, err
     end
-    if EC.KEY_generate_key(eckey) == 0 then
-        return nil, nil, ERR.get_error()
+    local ok, err = EC.KEY_generate_key(eckey)
+    if not ok then
+        return nil, nil, err
     end
     local prvkey, err = EC.KEY_get0_private_key(eckey)
     if not prvkey then
@@ -185,8 +193,9 @@ function _M.sign(self, str)
         return nil, err
     end
 
-    if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestSignInit(md_ctx, self.md, self.pkey)
+    if not ok then
+        return nil, err
     end
 
     return EVP.DigestSign(md_ctx, str)
@@ -202,8 +211,9 @@ function _M.verify(self, str, sig)
         return nil, err
     end
 
-    if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestVerifyInit(md_ctx, self.md, self.pkey)
+    if not ok then
+        return nil, err
     end
 
     return EVP.DigestVerify(md_ctx, str, sig)
