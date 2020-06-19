@@ -66,8 +66,9 @@ function _M.new(name, key)
         return nil, err
     end
 
-    if EVP.DigestInit(md_ctx, md) ~= 1 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestInit(md_ctx, md)
+    if not ok  then
+        return nil, err
     end
 
     return setmetatable({
@@ -80,7 +81,7 @@ function _M.update(self, s)
     if not self.md_ctx then
         return self.md:update(s)
     end
-    return EVP.DigestUpdate(self.md_ctx, s) == 1
+    return EVP.DigestUpdate(self.md_ctx, s)
 end
 
 function _M.final(self)

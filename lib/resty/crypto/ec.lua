@@ -76,14 +76,14 @@ function _M.KEY_free(eckey)
 end
 
 function _M.KEY_generate_key(eckey)
-    if C.EC_KEY_generate_key(eckey) == 1 then
-        return C.EC_KEY_check_key(eckey)
+    if  C.EC_KEY_generate_key(eckey) == 1 then
+        return C.EC_KEY_check_key(eckey) == 1
     end
-    return 0
+    return false, ERR.get_error()
 end
 
 function _M.KEY_check_key(eckey)
-    return C.EC_KEY_check_key(eckey)
+    return C.EC_KEY_check_key(eckey) == 1
 end
 
 function _M.KEY_get0_private_key(eckey)
@@ -96,10 +96,10 @@ end
 
 function _M.KEY_set_private_key(eckey, prv)
     local bn = BN.hex2bn(prv)
-    if bn then
-        return C.EC_KEY_set_private_key(eckey, bn)
+    if bn and C.EC_KEY_set_private_key(eckey, bn) == 1 then
+        return true
     end
-    return 0
+    return false, ERR.get_error()
 end
 
 function _M.KEY_get0_public_key(eckey)
@@ -119,14 +119,17 @@ end
 function _M.KEY_set_public_key(eckey, pub)
     local group = C.EC_KEY_get0_group(eckey)
     if group == ffi_null then
-        return 0
+        return false, ERR.get_error()
     end
     local str = ffi_new(const_char_ptr, pub)
     local point = C.EC_POINT_hex2point(group, str, ffi_null, ffi_null)
     if point == ffi_null then
-        return 0
+        return false, ERR.get_error()
     end
-    return C.EC_KEY_set_public_key(eckey, point)
+    if C.EC_KEY_set_public_key(eckey, point) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 return _M

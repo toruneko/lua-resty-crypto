@@ -44,8 +44,9 @@ function _M.generate_key(rsa, bits)
         return false, err
     end
     -- Set public exponent to 65537
-    if BN.set_word(bn, 65537) ~= 1 then
-        return false, ERR.get_error()
+    local ok, err = BN.set_word(bn, 65537)
+    if not ok then
+        return false, err
     end
 
     -- Generate key
