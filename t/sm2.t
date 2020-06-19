@@ -174,7 +174,7 @@ sha3-512:true
 
 
 
-=== TEST 2: SM2 encrypt & decrypt
+=== TEST 4: SM2 encrypt & decrypt
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {
