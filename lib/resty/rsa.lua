@@ -104,13 +104,15 @@ function _M.new(_, opts)
     if opts.padding or not opts.digest then
         local init_func = is_pub and EVP.PKEY_encrypt_init
                 or EVP.PKEY_decrypt_init
-        if init_func(ctx) <= 0 then
-            return nil, ERR.get_error()
+        local ok, err = init_func(ctx)
+        if not ok then
+            return nil, err
         end
 
-        if EVP.PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, -1, EVP_PKEY_CTRL_RSA_PADDING,
-            opts.padding or PADDING.RSA_PKCS1_PADDING, nil) <= 0 then
-            return ERR.get_error()
+        local ok, err = EVP.PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, -1, EVP_PKEY_CTRL_RSA_PADDING,
+            opts.padding or PADDING.RSA_PKCS1_PADDING, nil)
+        if not ok then
+            return nil, err
         end
     end
 
@@ -196,8 +198,9 @@ function _M.sign(self, str)
         if not md_ctx then
             return nil, err
         end
-        if EVP.DigestSignInit(md_ctx, self.md, self.pkey) <= 0 then
-            return nil, ERR.get_error()
+        local ok, err = EVP.DigestSignInit(md_ctx, self.md, self.pkey)
+        if not ok then
+            return nil, err
         end
         return EVP.DigestSign(md_ctx, str)
     end
@@ -207,12 +210,14 @@ function _M.sign(self, str)
         return nil, err
     end
 
-    if EVP.DigestInit(md_ctx, self.md) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestInit(md_ctx, self.md)
+    if not ok then
+        return nil, err
     end
 
-    if EVP.DigestUpdate(md_ctx, str) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestUpdate(md_ctx, str)
+    if not ok then
+        return nil, err
     end
 
     return EVP.SignFinal(md_ctx, self.pkey)
@@ -228,8 +233,9 @@ function _M.verify(self, str, sig)
         if not md_ctx then
             return nil, err
         end
-        if EVP.DigestVerifyInit(md_ctx, self.md, self.pkey) <= 0 then
-            return nil, ERR.get_error()
+        local ok, err = EVP.DigestVerifyInit(md_ctx, self.md, self.pkey)
+        if not ok then
+            return nil, err
         end
         return EVP.DigestVerify(md_ctx, str, sig)
     end
@@ -239,12 +245,14 @@ function _M.verify(self, str, sig)
         return nil, err
     end
 
-    if EVP.DigestInit(md_ctx, self.md) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestInit(md_ctx, self.md)
+    if not ok then
+        return nil, err
     end
 
-    if EVP.DigestUpdate(md_ctx, str) <= 0 then
-        return nil, ERR.get_error()
+    local ok, err = EVP.DigestUpdate(md_ctx, str)
+    if not ok then
+        return nil, err
     end
 
     return EVP.VerifyFinal(md_ctx, self.pkey, sig)
