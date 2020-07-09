@@ -1,6 +1,7 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
 local ERR = require "resty.crypto.error"
+local OPENSSL = require "resty.crypto.openssl"
 
 local ffi = require "ffi"
 local ffi_gc = ffi.gc
@@ -50,11 +51,16 @@ function _M.free(bn)
 end
 
 function _M.set_word(bn, word)
-    return C.BN_set_word(bn, word)
+    if C.BN_set_word(bn, word) <= 0 then
+        return false, ERR.get_error()
+    end
+    return true
 end
 
 function _M.bn2hex(bn)
-    return ffi_str(C.BN_bn2hex(bn))
+    local str = C.BN_bn2hex(bn)
+    OPENSSL.free(str)
+    return ffi_str(str)
 end
 
 function _M.hex2bn(hex)
