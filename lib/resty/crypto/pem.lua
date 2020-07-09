@@ -53,7 +53,7 @@ local function PEM_read_Key(d2i, key, pass, gc_meth)
     if x == ffi_null then
         return nil, ERR.get_error()
     end
-    ffi_gc(x, gc_meth)
+    gc_meth(x)
 
     return x
 end
