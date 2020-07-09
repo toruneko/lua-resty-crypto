@@ -17,6 +17,7 @@ local setmetatable = setmetatable
 local _M = { _VERSION = '1.0.0' }
 local mt = { __index = _M }
 
+local OPENSSL_1_1_256 = 269488143
 
 local PADDING = {
     RSA_PKCS1_PADDING = 1, -- RSA_size - 11
@@ -191,7 +192,7 @@ function _M.sign(self, str)
         return nil, "not inited for sign"
     end
 
-    if VERSION.patch_version() >= 256 then
+    if VERSION.version() >= OPENSSL_1_1_256 then
         local md_ctx, err = EVP.MD_CTX_new(self._decrypt_ctx)
         if not md_ctx then
             return nil, err
@@ -223,7 +224,7 @@ function _M.verify(self, str, sig)
         return nil, "not inited for verify"
     end
 
-    if VERSION.patch_version() >= 256 then
+    if VERSION.version() >= OPENSSL_1_1_256 then
         local md_ctx, err = EVP.MD_CTX_new(self._encrypt_ctx)
         if not md_ctx then
             return nil, err

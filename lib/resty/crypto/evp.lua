@@ -134,6 +134,7 @@ function _M.MD_CTX_new(pkey_ctx)
     end
     ffi_gc(md_ctx, evp_md_ctx_free)
     if pkey_ctx then
+        -- openssl 1.1.1
         C.EVP_MD_CTX_set_pkey_ctx(md_ctx, pkey_ctx)
     end
     return md_ctx
