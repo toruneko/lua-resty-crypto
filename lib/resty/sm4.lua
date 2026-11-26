@@ -401,7 +401,7 @@ function _M.encrypt(self, block)
 
     SMS4_Update_block(self.rk, _in, _out, true)
 
-    return ffi_str(_out)
+    return ffi_str(_out, BLOCK_SIZE)
 end
 
 function _M.decrypt(self, block)
@@ -410,7 +410,7 @@ function _M.decrypt(self, block)
 
     SMS4_Update_block(self.rk, _in, _out, false)
 
-    return ffi_str(_out)
+    return ffi_str(_out, BLOCK_SIZE)
 end
 
 return _M

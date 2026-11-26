@@ -135,6 +135,11 @@ function _M.MD_CTX_new(pkey_ctx)
     if pkey_ctx then
         -- openssl 1.1.1
         C.EVP_MD_CTX_set_pkey_ctx(md_ctx, pkey_ctx)
+        -- OpenSSL borrows this context; retain it until the digest is freed.
+        ffi_gc(md_ctx, function(ctx)
+            evp_md_ctx_free(ctx)
+            pkey_ctx = nil
+        end)
     end
     return md_ctx
 end

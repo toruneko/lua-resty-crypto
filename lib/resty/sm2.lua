@@ -27,6 +27,19 @@ local EVP_PKEY_SM2 = NID_SM2
 local EVP_PKEY_ALG_CTRL = 0x1000
 local EVP_PKEY_CTRL_SET1_ID = EVP_PKEY_ALG_CTRL + 11
 
+local function new_pkey_ctx(pkey, id)
+    local ctx, err = EVP.PKEY_CTX_new(pkey)
+    if not ctx then
+        return nil, err
+    end
+    local ok, err = EVP.PKEY_CTX_ctrl(ctx, -1, -1, EVP_PKEY_CTRL_SET1_ID,
+                                    #id, ffi_cast(void_ptr, id))
+    if not ok then
+        return nil, err
+    end
+    return ctx
+end
+
 local function read_private_key(private_key, private_pass, pemformat)
     if not pemformat then
         return private_key
@@ -98,14 +111,9 @@ function _M.new(opts, pemformat)
     C.EVP_PKEY_set_alias_type(pkey, EVP_PKEY_SM2)
 
     --EVP_PKEY_CTX
-    local pkey_ctx, err = EVP.PKEY_CTX_new(pkey)
-    if not pkey_ctx then
-        return nil, err
-    end
-
     local id = opts.id or "default sm2 ID"
-    local ok, err = EVP.PKEY_CTX_ctrl(pkey_ctx, -1, -1, EVP_PKEY_CTRL_SET1_ID, #id, ffi_cast(void_ptr, id))
-    if not ok then
+    local pkey_ctx, err = new_pkey_ctx(pkey, id)
+    if not pkey_ctx then
         return nil, err
     end
 
@@ -127,6 +135,7 @@ function _M.new(opts, pemformat)
         pkey_ctx = pkey_ctx,
         is_pub = is_pub,
         md = md,
+        id = id,
     }, mt)
 end
 
@@ -194,7 +203,11 @@ function _M.sign(self, str)
     if self.is_pub then
         return nil, "not inited for sign"
     end
-    local md_ctx, err = EVP.MD_CTX_new(self.pkey_ctx)
+    local pkey_ctx, err = new_pkey_ctx(self.pkey, self.id)
+    if not pkey_ctx then
+        return nil, err
+    end
+    local md_ctx, err = EVP.MD_CTX_new(pkey_ctx)
     if not md_ctx then
         return nil, err
     end
@@ -212,7 +225,11 @@ function _M.verify(self, str, sig)
         return nil, "not inited for verify"
     end
 
-    local md_ctx, err = EVP.MD_CTX_new(self.pkey_ctx)
+    local pkey_ctx, err = new_pkey_ctx(self.pkey, self.id)
+    if not pkey_ctx then
+        return nil, err
+    end
+    local md_ctx, err = EVP.MD_CTX_new(pkey_ctx)
     if not md_ctx then
         return nil, err
     end

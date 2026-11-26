@@ -29,17 +29,21 @@ const EVP_CIPHER *EVP_aes_256_cfb1(void);
 const EVP_CIPHER *EVP_aes_256_cfb8(void);
 const EVP_CIPHER *EVP_aes_256_cfb128(void);
 const EVP_CIPHER *EVP_aes_256_ofb(void);
+const EVP_CIPHER *EVP_aes_256_ctr(void);
 ]]
+
+local sizes = { [128] = true, [192] = true, [256] = true }
+local modes = { ecb = true, cbc = true, cfb1 = true, cfb8 = true,
+                cfb128 = true, ofb = true, ctr = true }
 
 function _M.cipher(_cipher, _size)
     local _size = _size or 128
     local _cipher = _cipher or "cbc"
-    local func = "EVP_aes_" .. _size .. "_" .. _cipher
-    if C[func] then
-        return { size = _size, cipher = _cipher, method = C[func]() }
-    else
+    if not sizes[_size] or not modes[_cipher] then
         return nil
     end
+    local func = "EVP_aes_" .. _size .. "_" .. _cipher
+    return { size = _size, cipher = _cipher, method = C[func]() }
 end
 
 return _M

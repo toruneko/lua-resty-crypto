@@ -1,6 +1,7 @@
 -- Copyright (C) by Thought Foundry Inc.
 
 require "resty.crypto.evp"
+local ERR = require "resty.crypto.error"
 local str = require "resty.utils.string"
 
 local ffi = require "ffi"
@@ -39,12 +40,12 @@ end
 function _M.new(key, _hash)
     local ctx = C.HMAC_CTX_new()
     if ctx == ffi_null then
-        return nil
+        return nil, ERR.get_error()
     end
     ffi_gc(ctx, C.HMAC_CTX_free)
 
     if C.HMAC_Init_ex(ctx, key, #key, _hash, nil) == 0 then
-        return nil
+        return nil, ERR.get_error()
     end
 
     return setmetatable({ _ctx = ctx }, mt)

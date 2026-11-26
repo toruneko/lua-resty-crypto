@@ -1,5 +1,7 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
+require "resty.crypto.evp"
+
 local X509 = require "resty.crypto.x509"
 local RSA = require "resty.crypto.rsa"
 local EC = require "resty.crypto.ec"

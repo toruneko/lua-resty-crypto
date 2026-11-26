@@ -65,3 +65,32 @@ GET /t
 --- error_code: 200
 --- no_error_log
 [error]
+
+
+=== TEST 3: SM4 preserves zero bytes and block length
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local sm4 = require("resty.sm4"):new({
+                0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
+                0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10
+            })
+            local block = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+            local encrypted = sm4:encrypt(block)
+            local bytes = {encrypted:byte(1, #encrypted)}
+            local decrypted = sm4:decrypt(bytes)
+            ngx.say(#encrypted)
+            ngx.say(#decrypted)
+            ngx.say(decrypted == string.char(unpack(block)))
+        }
+    }
+--- request
+GET /t
+--- response_body
+16
+16
+true
+--- error_code: 200
+--- no_error_log
+[error]
