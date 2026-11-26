@@ -47,3 +47,42 @@ abc
 --- no_error_log
 [error]
 
+
+=== TEST 2: AES 256 CTR is available
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local cipher = assert(require("resty.aes").cipher("ctr", 256))
+            local aes = assert(require("resty.crypto").new("secret", nil, cipher))
+            local plain = "a" .. string.char(0) .. "b"
+            ngx.say(aes:decrypt(assert(aes:encrypt(plain))) == plain)
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+--- error_code: 200
+--- no_error_log
+[error]
+
+
+=== TEST 3: Invalid AES selections return nil
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local aes = require "resty.aes"
+            ngx.say(aes.cipher("invalid") == nil)
+            ngx.say(aes.cipher("cbc", 64) == nil)
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+true
+--- error_code: 200
+--- no_error_log
+[error]

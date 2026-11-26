@@ -18,6 +18,61 @@ run_tests();
 
 __DATA__
 
+=== TEST 5: SM3 fallback does not silently discard HMAC keys
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            require "resty.digest"
+            local ffi = require "ffi"
+            local proxy = setmetatable({
+                C = setmetatable({}, {__index = function(_, symbol)
+                    if symbol == "EVP_sm3" then
+                        error("SM3 is unavailable")
+                    end
+                    return ffi.C[symbol]
+                end}),
+            }, {__index = ffi})
+            package.loaded.ffi = proxy
+            local digest = assert(loadfile("$TEST_NGINX_CWD/lib/resty/digest.lua"))()
+            package.loaded.ffi = ffi
+            local hmac, err = digest.new("sm3", "secret")
+            ngx.say(hmac == nil and err ~= nil)
+            ngx.say(assert(digest.new("sm3"))("abc"))
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
+--- error_code: 200
+--- no_error_log
+[error]
+
+=== TEST 6: SM3 byte counters carry at unsigned 32-bit boundaries
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local sm3 = assert(require("resty.digest.sm3").new())
+            sm3._ctx.lLen = 0x7fffffff
+            assert(sm3:update("a"))
+            ngx.say(sm3._ctx.lLen == 0x80000000 and sm3._ctx.hLen == 0)
+            sm3._ctx.lLen = 0xffffffff
+            assert(sm3:update("ab"))
+            ngx.say(sm3._ctx.lLen == 1 and sm3._ctx.hLen == 1)
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+true
+--- error_code: 200
+--- no_error_log
+[error]
+
 === TEST 1: SM3 abc
 --- http_config eval: $::HttpConfig
 --- config
@@ -32,6 +87,32 @@ __DATA__
 --- request
 GET /t
 --- response_body
+66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
+--- error_code: 200
+--- no_error_log
+[error]
+
+
+=== TEST 4: Fallback SM3 accepts empty updates
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local sm3 = assert(require("resty.digest.sm3").new())
+            ngx.say(sm3:update(""))
+            ngx.say(require("resty.utils.string").tohex(sm3:final()))
+            assert(sm3:reset())
+            assert(sm3:update("a"))
+            assert(sm3:update(""))
+            assert(sm3:update("bc"))
+            ngx.say(require("resty.utils.string").tohex(sm3:final()))
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+1ab21d8355cfa17f8e61194831e81a8f22bec8c728fefb747ed035eb5082aa2b
 66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
 --- error_code: 200
 --- no_error_log

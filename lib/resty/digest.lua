@@ -1,7 +1,6 @@
 -- Copyright (C) by Jianhao Dai (Toruneko)
 
 local EVP = require "resty.crypto.evp"
-local ERR = require "resty.crypto.error"
 local HMAC = require "resty.digest.hmac"
 local SM3 = require "resty.digest.sm3"
 
@@ -36,12 +35,19 @@ local hash = {
 }
 
 function mt.__call(self, s)
-    if not self:reset() then
-        return nil
+    local ok, err = self:reset()
+    if not ok then
+        return nil, err
     end
-    if self:update(s) then
-        return str.tohex(self:final())
+    local ok, err = self:update(s)
+    if not ok then
+        return nil, err
     end
+    local digest, err = self:final()
+    if not digest then
+        return nil, err
+    end
+    return str.tohex(digest)
 end
 
 function _M.new(name, key)
@@ -53,12 +59,19 @@ function _M.new(name, key)
 
     -- sm3 compac for openssl 1.1.0
     if name == "sm3" and not sm3_support then
+        if key then
+            return nil, "HMAC-SM3 requires native OpenSSL SM3 support"
+        end
         return setmetatable({ md = md.new() }, mt)
     end
 
     -- hmac mode if key exists
     if key then
-        return setmetatable({ md = HMAC.new(key, md) }, mt)
+        local hmac, err = HMAC.new(key, md)
+        if not hmac then
+            return nil, err
+        end
+        return setmetatable({ md = hmac }, mt)
     end
 
     local md_ctx, err = EVP.MD_CTX_new()
@@ -95,7 +108,7 @@ function _M.reset(self)
     if not self.md_ctx then
         return self.md:reset()
     end
-    return true
+    return EVP.DigestInit(self.md_ctx, self.md)
 end
 
 function _M.tohex(s)

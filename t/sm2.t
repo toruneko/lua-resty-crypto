@@ -18,6 +18,46 @@ run_tests();
 
 __DATA__
 
+=== TEST 5: SM2 signing preserves encryption contexts and user IDs
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local sm2 = require "resty.sm2"
+            local pub, prv = sm2.generate_key()
+            local signer = assert(sm2.new({
+                public_key = pub, private_key = prv,
+                algorithm = "sm3", id = "custom-test-id",
+            }))
+            local verifier = assert(sm2.new({
+                public_key = pub, algorithm = "sm3", id = "custom-test-id",
+            }))
+            local wrong_id = assert(sm2.new({
+                public_key = pub, algorithm = "sm3", id = "different-test-id",
+            }))
+            for _, plain in ipairs({"first", "second"}) do
+                local encrypted = assert(verifier:encrypt(plain))
+                local signed = assert(signer:sign(plain))
+                collectgarbage("collect")
+                ngx.say(verifier:verify(plain, signed))
+                ngx.say(signer:decrypt(encrypted) == plain)
+                ngx.say(wrong_id:verify(plain, signed) == false)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+true
+true
+true
+true
+true
+--- error_code: 200
+--- no_error_log
+[error]
+
 === TEST 1: SM2 sign & verify
 --- http_config eval: $::HttpConfig
 --- config

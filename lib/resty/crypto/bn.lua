@@ -59,6 +59,9 @@ end
 
 function _M.bn2hex(bn)
     local str = C.BN_bn2hex(bn)
+    if str == ffi_null then
+        return nil, ERR.get_error()
+    end
     OPENSSL.free(str)
     return ffi_str(str)
 end
@@ -70,10 +73,12 @@ function _M.hex2bn(hex)
     end
     local bignum = ffi_new(BIGNUM_ptr, 1)
     bignum[0] = bn
-    if C.BN_hex2bn(bignum, ffi_new(const_char_ptr, hex)) > 0 then
-        return bignum[0]
+    local len = C.BN_hex2bn(bignum, ffi_new(const_char_ptr, hex))
+    if len > 0 and len == #hex then
+        return bn
     end
-    return nil, ERR.get_error()
+    local err = ERR.get_error()
+    return nil, err ~= "" and err or "invalid hexadecimal number"
 end
 
 return _M

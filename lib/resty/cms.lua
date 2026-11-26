@@ -21,10 +21,8 @@ local setmetatable = setmetatable
 local type = type
 local ipairs = ipairs
 
-local CMS_NO_CONTENT_VERIFY = 0x4
-local CMS_NO_ATTR_VERIFY = 0x8
+local CMS_BINARY = 0x80
 local CMS_NOATTR = 0x100
-local CMS_DEBUG_DECRYPT = 0x20000
 
 local _M = { _VERSION = '0.0.2' }
 local mt = { __index = _M }
@@ -33,7 +31,8 @@ ffi.cdef [[
 //CMS Functions
 typedef struct CMS_ContentInfo_st CMS_ContentInfo;
 CMS_ContentInfo *CMS_ContentInfo_new();
-void *CMS_ContentInfo_free(CMS_ContentInfo *cms);
+void CMS_ContentInfo_free(CMS_ContentInfo *cms);
+int EVP_PKEY_set1_RSA(EVP_PKEY *pkey, RSA *key);
 
 int i2d_CMS_ContentInfo(CMS_ContentInfo *a, unsigned char **pp);
 CMS_ContentInfo *d2i_CMS_ContentInfo(CMS_ContentInfo **a, unsigned char **pp,
@@ -64,9 +63,12 @@ function _M.new(opts)
         if not rsa then
             return nil, err
         end
-        local pkey, err = EVP.PKEY_new(rsa)
+        local pkey, err = EVP.PKEY_new()
         if not pkey then
             return nil, err
+        end
+        if C.EVP_PKEY_set1_RSA(pkey, rsa) ~= 1 then
+            return nil, ERR.get_error()
         end
         cms.pkey = pkey
     end
@@ -107,18 +109,25 @@ function _M.new(opts)
     end
 
     cms.cipher = opts.cipher or AES.cipher()
+    if type(cms.cipher) == "table" then
+        cms.cipher = cms.cipher.method
+    end
 
     return setmetatable(cms, mt)
 end
 
 function _M.i2d_CMS_ContentInfo(self, cms)
-    local str = ffi_new(unsigned_char_ptr_ptr, 1)
-    local str_len = C.i2d_CMS_ContentInfo(cms, str)
-    if str_len == 0 then
+    local str_len = C.i2d_CMS_ContentInfo(cms, ffi_null)
+    if str_len <= 0 then
+        return nil, ERR.get_error()
+    end
+    local buf = ffi_new("unsigned char[?]", str_len)
+    local str = ffi_new(unsigned_char_ptr_ptr, 1, buf)
+    if C.i2d_CMS_ContentInfo(cms, str) ~= str_len then
         return nil, ERR.get_error()
     end
 
-    return ffi_str(str[0], str_len)
+    return ffi_str(buf, str_len)
 end
 
 function _M.d2i_CMS_ContentInfo(self, data)
@@ -168,6 +177,7 @@ function _M.CMS_sign(self, data_in, flags)
     if cms == ffi_null then
         return nil, ERR.get_error()
     end
+    ffi_gc(cms, C.CMS_ContentInfo_free)
     return cms
 end
 
@@ -180,11 +190,15 @@ function _M.CMS_encrypt(self, data_in, flags)
     if cms == ffi_null then
         return nil, ERR.get_error()
     end
+    ffi_gc(cms, C.CMS_ContentInfo_free)
     return cms
 end
 
 function _M.CMS_verify(self, cms, flags)
-    local out = BIO.new()
+    local out, err = BIO.new()
+    if not out then
+        return nil, err
+    end
     local certs, err = STACK.X509_new({ self.cert })
     if not certs then
         return nil, err
@@ -196,7 +210,10 @@ function _M.CMS_verify(self, cms, flags)
 end
 
 function _M.CMS_decrypt(self, cms, flags)
-    local out = BIO.new()
+    local out, err = BIO.new()
+    if not out then
+        return nil, err
+    end
     if C.CMS_decrypt(cms, self.pkey, self.signcert, ffi_null, out, flags) == 0 then
         return nil, ERR.get_error()
     end
@@ -213,7 +230,7 @@ function _M.sign(self, data)
         return nil, err
     end
 
-    local cms, err = self:CMS_sign(data_in, CMS_NOATTR)
+    local cms, err = self:CMS_sign(data_in, bor(CMS_NOATTR, CMS_BINARY))
     if not cms then
         return nil, err
     end
@@ -236,7 +253,7 @@ function _M.encrypt(self, data)
         return nil, err
     end
 
-    local cms, err = self:CMS_encrypt(data_in, 0)
+    local cms, err = self:CMS_encrypt(data_in, CMS_BINARY)
     if not cms then
         return nil, err
     end
@@ -259,7 +276,7 @@ function _M.verify(self, data, pass)
         return nil, err
     end
 
-    local out, err = self:CMS_verify(cms, bor(CMS_NO_ATTR_VERIFY, CMS_NO_CONTENT_VERIFY))
+    local out, err = self:CMS_verify(cms, CMS_BINARY)
     if not out then
         return nil, err
     end
@@ -282,7 +299,7 @@ function _M.decrypt(self, data, pass)
         return nil, err
     end
 
-    local out, err = self:CMS_decrypt(cms, CMS_DEBUG_DECRYPT)
+    local out, err = self:CMS_decrypt(cms, CMS_BINARY)
     if not out then
         return nil, err
     end

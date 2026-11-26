@@ -109,14 +109,15 @@ function _M.KEY_get0_public_key(eckey)
     if point == ffi_null then
         return nil, "no private key"
     end
-    ffi_gc(point, C.EC_POINT_free)
-
     local group = C.EC_KEY_get0_group(eckey)
     if group == ffi_null then
         return nil, "no group"
     end
     local conv = C.EC_KEY_get_conv_form(eckey)
     local hex = C.EC_POINT_point2hex(group, point, conv, ffi_null)
+    if hex == ffi_null then
+        return nil, ERR.get_error()
+    end
     OPENSSL.free(hex)
     return ffi_str(hex)
 end

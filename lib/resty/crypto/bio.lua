@@ -19,6 +19,7 @@ BIO_METHOD *BIO_s_mem(void);
 BIO * BIO_new(BIO_METHOD *type);
 void BIO_vfree(BIO *a);
 int	BIO_puts(BIO *bp,const char *buf);
+int BIO_write(BIO *bp, const void *data, int len);
 int BIO_read(BIO *b, void *data, int len);
 long BIO_ctrl(BIO *bp, int cmd, long larg, void *parg);
 ]]
@@ -38,8 +39,8 @@ function _M.new(data, method)
     ffi_gc(bio, C.BIO_vfree)
 
     if data then
-        local len = C.BIO_puts(bio, data)
-        if len < 0 then
+        local len = C.BIO_write(bio, data, #data)
+        if len ~= #data then
             return nil, ERR.get_error()
         end
     end
@@ -51,8 +52,8 @@ function _M.puts(bio, data)
         return
     end
 
-    local len = C.BIO_puts(bio, data)
-    if len < 0 then
+    local len = C.BIO_write(bio, data, #data)
+    if len ~= #data then
         return nil, ERR.get_error()
     end
     return bio
@@ -60,16 +61,20 @@ end
 
 function _M.read(bio)
     local len = C.BIO_ctrl(bio, BIO_CTRL_PENDING, 0, ffi_null)
-    if len <= 0 then
+    if len == 0 then
+        return ""
+    end
+    if len < 0 then
         return nil, ERR.get_error()
     end
 
     local data = ffi_new(char_ptr, len)
-    if C.BIO_read(bio, data, len) <= 0 then
+    local read_len = C.BIO_read(bio, data, len)
+    if read_len <= 0 then
         return nil, ERR.get_error()
     end
 
-    return ffi_str(data, len)
+    return ffi_str(data, read_len)
 end
 
 return _M
