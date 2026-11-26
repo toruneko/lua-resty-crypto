@@ -44,7 +44,8 @@ local EVP_PKEY_CTRL_RSA_PADDING = EVP_PKEY_ALG_CTRL + 1
 local NID_rsaEncryption = 6
 local EVP_PKEY_RSA = NID_rsaEncryption
 
-function _M.new(_, opts)
+function _M.new(self, opts)
+    opts = opts or self
     local key, read_func, is_pub, md
 
     if opts.public_key then
@@ -195,7 +196,7 @@ function _M.sign(self, str)
     end
 
     if VERSION.version() >= OPENSSL_1_1_256 then
-        local md_ctx, err = EVP.MD_CTX_new(self._decrypt_ctx)
+        local md_ctx, err = EVP.MD_CTX_new()
         if not md_ctx then
             return nil, err
         end
@@ -230,7 +231,7 @@ function _M.verify(self, str, sig)
     end
 
     if VERSION.version() >= OPENSSL_1_1_256 then
-        local md_ctx, err = EVP.MD_CTX_new(self._encrypt_ctx)
+        local md_ctx, err = EVP.MD_CTX_new()
         if not md_ctx then
             return nil, err
         end

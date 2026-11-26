@@ -152,6 +152,34 @@ run_tests();
 
 __DATA__
 
+=== TEST 20: RSA constructor supports dot syntax and operations can be mixed
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local rsa = require "resty.rsa"
+            local pub, prv = rsa.generate_key(1024)
+            local signer = assert(rsa.new({private_key = prv, algorithm = "sha256"}))
+            local verifier = assert(rsa:new({public_key = pub, algorithm = "sha256"}))
+            for _, plain in ipairs({"first", "second"}) do
+                local encrypted = assert(verifier:encrypt(plain))
+                local signed = assert(signer:sign(plain))
+                ngx.say(verifier:verify(plain, signed))
+                ngx.say(signer:decrypt(encrypted) == plain)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+true
+true
+true
+true
+--- error_code: 200
+--- no_error_log
+[error]
+
 
 === TEST 1: RSA default hello
 --- http_config eval: $::HttpConfig

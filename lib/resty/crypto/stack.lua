@@ -14,17 +14,16 @@ local _M = { _VERSION = '0.0.1' }
 
 ffi.cdef [[
 typedef struct stack_st OPENSSL_STACK;
+struct stack_st_X509;
 
 OPENSSL_STACK *OPENSSL_sk_new_null(void);
 void OPENSSL_sk_free(OPENSSL_STACK *st);
 int OPENSSL_sk_push(OPENSSL_STACK *st, void *data);
 ]]
 
-local intptr_t = ffi.typeof("intptr_t")
-
 local function sk_new(st, items)
-    if not items and type(items) ~= "table" then
-        return nil
+    if type(items) ~= "table" then
+        return nil, "items must be a table"
     end
 
     local stack = C.OPENSSL_sk_new_null()
@@ -33,11 +32,20 @@ local function sk_new(st, items)
     end
     ffi_gc(stack, C.OPENSSL_sk_free)
 
+    local refs = { stack }
     for _, item in ipairs(items) do
-        C.OPENSSL_sk_push(stack, item)
+        if C.OPENSSL_sk_push(stack, item) <= 0 then
+            return nil, ERR.get_error()
+        end
+        refs[#refs + 1] = item
     end
 
-    return ffi_cast("struct stack_st_" .. st .. " *", ffi_cast(intptr_t, stack))
+    -- Keep the original pointer and certificate references alive after casting.
+    local typed_stack = ffi_cast("struct stack_st_" .. st .. " *", stack)
+    return ffi_gc(typed_stack, function()
+        ffi_gc(refs[1], nil)
+        C.OPENSSL_sk_free(refs[1])
+    end)
 end
 
 function _M.X509_new(certs)

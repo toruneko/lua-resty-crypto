@@ -190,19 +190,16 @@ end
 
 local function SM3_Update(ctx, data, len)
     if len <= 0 then
-        return 0
+        return 1
     end
 
     local left = band(ctx.lLen, 0x3f)
     local fill = 64 - left
     local offset = 0
 
-    ctx.lLen = ctx.lLen + len;
-    ctx.lLen = band(ctx.lLen, 0xFFFFFFFF);
-
-    if ctx.lLen < len then
-        ctx.hLen = ctx.hLen + 1;
-    end
+    local total = ctx.lLen + len
+    ctx.lLen = total % 4294967296
+    ctx.hLen = (ctx.hLen + math.floor(total / 4294967296)) % 4294967296
 
     if left > 0 and len >= fill then
         for i = 1, fill, 1 do
